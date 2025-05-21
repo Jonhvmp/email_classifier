@@ -80,6 +80,6 @@ class EmailForm(forms.ModelForm):
                 else:
                     print(f"Tipo de arquivo aceito: {ext}")
                     # Salvar o tipo de arquivo
-                    cleaned_data['file_type'] = ext[1:] 
+                    self.cleaned_data['file_type'] = ext[1:] 
 
-        return cleaned_data
+        return self.cleaned_data
