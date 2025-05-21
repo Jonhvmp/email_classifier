@@ -1,10 +1,14 @@
 from django.db import models
 import os
+from django.utils.text import slugify
 
 def get_upload_path(instance, filename):
     """Define o caminho para upload de arquivos de email"""
+    from datetime import datetime
     ext = filename.split('.')[-1]
-    return f'uploads/{instance.sender}_{instance.subject}_{instance.created_at.strftime("%Y%m%d%H%M%S")}.{ext}'
+    subject_slug = slugify(instance.subject[:30])  # Limita o tamanho e normaliza o assunto
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    return f'uploads/{instance.sender.split("@")[0]}_{subject_slug}_{timestamp}.{ext}'
 
 class Email(models.Model):
     subject = models.CharField(max_length=200, verbose_name='Assunto')
@@ -18,11 +22,26 @@ class Email(models.Model):
     ], blank=True, verbose_name='Categoria')
     suggested_response = models.TextField(blank=True, verbose_name='Resposta Sugerida')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Criado em')
+    confidence_score = models.FloatField(default=0.0, verbose_name='Nível de Confiança')
 
     def __str__(self):
         return f"{self.subject} - {self.category}"
+
+    @property
+    def category_display(self):
+        """Retorna o valor de exibição da categoria"""
+        return dict(self._meta.get_field('category').choices).get(self.category, self.category)
+
+    @property
+    def is_productive(self):
+        return self.category == 'productive'
 
     class Meta:
         verbose_name = 'Email'
         verbose_name_plural = 'Emails'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['category']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['sender']),
+        ]
