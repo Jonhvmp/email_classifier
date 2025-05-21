@@ -131,6 +131,10 @@ STATICFILES_DIRS = [
 # Configuração do Whitenoise
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# Configuração de upload de arquivos
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
 # Configurações da API Cohere
 COHERE_API_KEY = os.getenv('COHERE_API_KEY', '')
 

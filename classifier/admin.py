@@ -1,3 +1,20 @@
 from django.contrib import admin
+from .models import Email
 
-# Register your models here.
+@admin.register(Email)
+class EmailAdmin(admin.ModelAdmin):
+    list_display = ['subject', 'sender', 'category', 'created_at']
+    list_filter = ['category', 'created_at']
+    search_fields = ['subject', 'content', 'sender']
+    readonly_fields = ['category', 'suggested_response', 'created_at']
+    fieldsets = (
+        ('Informações do Email', {
+            'fields': ('sender', 'subject', 'content')
+        }),
+        ('Classificação', {
+            'fields': ('category', 'suggested_response')
+        }),
+        ('Metadata', {
+            'fields': ('created_at',)
+        }),
+    )
