@@ -32,13 +32,9 @@ def home(request):
 
             if input_method == 'file' and email.file:
                 # Salvar o arquivo temporariamente
-                file_path = os.path.join(settings.MEDIA_ROOT, email.file.name)
-                os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
-                with open(file_path, 'wb+') as destination:
-                    for chunk in email.file.chunks():
-                        destination.write(chunk)
-
+                # Save the uploaded file using Django's storage system
+                email.file.save(email.file.name, email.file, save=True)
+                file_path = email.file.path  # Get the file path from the storage system
                 # Extrair texto do arquivo
                 try:
                     subject_from_file, content_from_file, sender_from_file = extract_text_from_file(file_path)
