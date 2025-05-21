@@ -38,7 +38,7 @@ def classify_email(subject, content):
     text_lower = (subject + " " + content).lower()
 
     # Verificando contexto de reunião/agendamento
-    if "reunião" in text_lower and "confirmar" in text_lower or "confirme" in text_lower:
+    if "reunião" in text_lower and ("confirmar" in text_lower or "confirme" in text_lower):
         # Emails sobre agendamentos e reuniões são produtivos
         return 'productive'
 
