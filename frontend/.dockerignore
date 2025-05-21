@@ -1,0 +1,25 @@
+# Node.js
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.pnpm-debug.log
+
+# Next.js
+.next
+out
+
+# Ambientes
+.env*
+!.env.example
+
+# Controle de versão
+.git
+.gitignore
+
+# Outros
+README.md
+.DS_Store
+*.pem
+.idea
+.vscode
