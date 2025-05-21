@@ -13,22 +13,22 @@ def home(request):
     View da p?gina inicial com formul?rio para submiss?o de email.
     """
     if request.method == 'POST':
-        print('\n\n')
-        print('='*50)
-        print('POST REQUEST RECEBIDO')
-        print('='*50)
-        print(f'POST data: {request.POST}')
-        print(f'FILES data: {request.FILES}')
+        logging.debug('\n\n')
+        logging.debug('='*50)
+        logging.info('POST REQUEST RECEBIDO')
+        logging.debug('='*50)
+        logging.debug(f'POST data: {request.POST}')
+        logging.debug(f'FILES data: {request.FILES}')
 
         form = EmailForm(request.POST, request.FILES)
-        print(f'Form criado, ? v?lido? {form.is_valid()}')
+        logging.debug(f'Form criado, ? v?lido? {form.is_valid()}')
 
         if form.is_valid():
-            print('Form is valid')
+            logging.info('Form is valid')
             email = form.save(commit=False)
 
             input_method = form.cleaned_data.get('input_method')
-            print(f'Input method: {input_method}')
+            logging.debug(f'Input method: {input_method}')
 
             if input_method == 'file' and email.file:
                 # Salvar o arquivo temporariamente
