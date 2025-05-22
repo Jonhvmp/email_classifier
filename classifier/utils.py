@@ -146,6 +146,7 @@ def clean_content(text, subject="", sender=""):
         if len(parts) > 1:
             content = parts[0]
 
+    # Limpa espaços em branco duplicados
     content = re.sub(r'\n\s*\n', '\n\n', content)
 
     return content.strip()

@@ -36,6 +36,7 @@ services:
       - email-classifier-network
     depends_on:
       - django
+<<<<<<< HEAD
 
   frontend:
     build:
@@ -54,6 +55,8 @@ services:
       - email-classifier-network
     depends_on:
       - django
+=======
+>>>>>>> feature/integrate-AI
 
 networks:
   email-classifier-network:

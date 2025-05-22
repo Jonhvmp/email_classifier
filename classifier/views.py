@@ -16,7 +16,6 @@ def home(request):
     View da página inicial com formulário para submissão de email.
     """
     if request.method == 'POST':
-        # Verificar se é requisição AJAX do frontend
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'HTTP_ORIGIN' in request.META
 
         form = EmailForm(request.POST, request.FILES)
@@ -26,7 +25,6 @@ def home(request):
             email = form.save(commit=False)
             input_method = form.cleaned_data.get('input_method')
 
-            # Processar arquivo se enviado
             if input_method == 'file' and email.file:
                 try:
                     email.file.save(email.file.name, email.file, save=True)
@@ -34,7 +32,6 @@ def home(request):
 
                     subject_from_file, content_from_file, sender_from_file = extract_text_from_file(file_path)
 
-                    # Aplicar campos do arquivo conforme configurações
                     use_manual_subject = form.cleaned_data.get('use_file_subject', False)
                     if not use_manual_subject or not email.subject:
                         email.subject = subject_from_file
@@ -64,7 +61,6 @@ def home(request):
                     return render(request, 'classifier/home.html', {'form': form})
 
             try:
-                # Processar o email usando o serviço AI
                 logger.info(f"Processando email - Assunto: {email.subject[:30]}...")
 
                 email_data = {
@@ -305,7 +301,6 @@ def api_email_detail(request, pk):
         }
 
         response = JsonResponse(data)
-        # Adicionar cabeçalhos CORS
         response["Access-Control-Allow-Origin"] = "*"
         response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
         response["Access-Control-Allow-Headers"] = "Content-Type"
@@ -336,7 +331,6 @@ def api_emails_list(request):
             })
 
         response = JsonResponse(data, safe=False)
-        # Adicionar cabeçalhos CORS
         response["Access-Control-Allow-Origin"] = "*"
         response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
         response["Access-Control-Allow-Headers"] = "Content-Type"
