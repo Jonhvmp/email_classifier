@@ -23,6 +23,9 @@ class Email(models.Model):
     suggested_response = models.TextField(blank=True, verbose_name='Resposta Sugerida')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Criado em')
     confidence_score = models.FloatField(default=0.0, verbose_name='Nível de Confiança')
+    # Made null=True to avoid migration issues
+    classification_method = models.CharField(max_length=20, default='huggingface', blank=True,
+                                           null=True, verbose_name='Método de Classificação')
 
     def __str__(self):
         return f"{self.subject} - {self.category}"

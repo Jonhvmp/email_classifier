@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# Ambiente
+.env
+
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+*.iws
+.idea_modules/
+
+# Outros
+.DS_Store
+
+# venv
+.venv/
+
+# docker
+docker-cli.js
+dev.bat
+DOCKER-CLI-GUIDE.md
+docker-cli.bat
+docker-cli.config.json
+
+# Others
+sample_emails/
+
+# Checks keys
+classifier/check_api_keys.py
+classifier/manage_api_keys.py
