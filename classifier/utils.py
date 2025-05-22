@@ -1,76 +1,75 @@
 import os
-import PyPDF2
 import re
+from PyPDF2 import PdfReader
 from datetime import datetime
+
+def clean_text(text):
+    """Clean and normalize text."""
+    if not text:
+        return ""
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'[^\w\s@.,;:?!-]', '', text)
+    return text.strip()
 
 def extract_text_from_file(file_path):
     """
-    Extrai texto de arquivos .txt ou .pdf
+    Extract text from various file types.
 
     Args:
-        file_path (str): Caminho para o arquivo
+        file_path: Path to the file
 
     Returns:
-        tuple: (subject, content, sender) - assunto, conteúdo e remetente extraídos do arquivo
+        Tuple of (subject, content, sender)
     """
-    ext = os.path.splitext(file_path)[1].lower()
+    file_extension = os.path.splitext(file_path)[1].lower()
 
-    if ext == '.txt':
-        return extract_from_txt(file_path)
-    elif ext == '.pdf':
+    if file_extension == '.pdf':
         return extract_from_pdf(file_path)
+    elif file_extension == '.txt':
+        return extract_from_txt(file_path)
     else:
-        raise ValueError(f"Formato de arquivo não suportado: {ext}")
-
-def extract_from_txt(file_path):
-    """
-    Extrai texto de um arquivo .txt
-
-    Args:
-        file_path (str): Caminho para o arquivo .txt
-
-    Returns:
-        tuple: (subject, content, sender) - assunto, conteúdo e remetente extraídos do arquivo
-    """
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            text = f.read()
-
-        sender = extract_sender(text)
-        subject = extract_subject(text)
-        content = clean_content(text, subject, sender)
-
-        return subject, content, sender
-    except Exception as e:
-        print(f"Erro ao extrair texto do arquivo .txt: {str(e)}")
-        return "Erro na extração", f"Não foi possível extrair o texto do arquivo: {str(e)}", ""
+        raise ValueError(f"Unsupported file format: {file_extension}")
 
 def extract_from_pdf(file_path):
-    """
-    Extrai texto de um arquivo .pdf
-
-    Args:
-        file_path (str): Caminho para o arquivo .pdf
-
-    Returns:
-        tuple: (subject, content, sender) - assunto, conteúdo e remetente extraídos do arquivo
-    """
+    """Extract text from PDF file."""
     try:
-        text = ""
-        with open(file_path, 'rb') as f:
-            pdf_reader = PyPDF2.PdfReader(f)
-            for page_num in range(len(pdf_reader.pages)):
-                page = pdf_reader.pages[page_num]
-                text += page.extract_text()
+        with open(file_path, 'rb') as file:
+            pdf = PdfReader(file)
+            text = ""
+            for page in pdf.pages:
+                text += page.extract_text() + "\n"
 
-        sender = extract_sender(text)
-        subject = extract_subject(text)
-        content = clean_content(text, subject, sender)
+        from .ai_service import process_document
+        result = process_document(text, 'pdf')
 
-        return subject, content, sender
+        return (
+            result.get('subject', 'No Subject'),
+            result.get('content', text),
+            result.get('sender', 'noreply@example.com')
+        )
     except Exception as e:
-        print(f"Erro ao extrair texto do arquivo PDF: {str(e)}")
-        return "Erro na extração", f"Não foi possível extrair o texto do arquivo PDF: {str(e)}", ""
+        print(f"Error extracting text from PDF: {str(e)}")
+        filename = os.path.basename(file_path)
+        return (filename, f"Failed to process PDF content: {str(e)}", "noreply@example.com")
+
+def extract_from_txt(file_path):
+    """Extract text from text file."""
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
+            text = file.read()
+
+        from .ai_service import process_document
+        result = process_document(text, 'txt')
+
+        return (
+            result.get('subject', 'No Subject'),
+            result.get('content', text),
+            result.get('sender', 'noreply@example.com')
+        )
+    except Exception as e:
+        print(f"Error extracting text from TXT: {str(e)}")
+        filename = os.path.basename(file_path)
+        return (filename, f"Failed to process text content: {str(e)}", "noreply@example.com")
 
 def extract_sender(text):
     """Extrai possível remetente do texto"""
@@ -147,34 +146,9 @@ def clean_content(text, subject="", sender=""):
         if len(parts) > 1:
             content = parts[0]
 
-    # Limpa espaços em branco duplicados
     content = re.sub(r'\n\s*\n', '\n\n', content)
 
     return content.strip()
-
-def clean_text(text):
-    """
-    Realiza pré-processamento básico no texto
-
-    Args:
-        text (str): Texto a ser processado
-
-    Returns:
-        str: Texto processado
-    """
-    if not text:
-        return ""
-
-    # Remove múltiplos espaços em branco
-    text = re.sub(r'\s+', ' ', text)
-
-    # Remove caracteres especiais e mantém apenas letras, números, pontuação básica
-    text = re.sub(r'[^\w\s.,!?@:;()\'\"-]', '', text)
-
-    # Remove caracteres repetidos (como '....')
-    text = re.sub(r'([.,!?])\1{2,}', r'\1', text)
-
-    return text.strip()
 
 def get_timestamp():
     """Retorna um timestamp formatado para uso em nomes de arquivos"""

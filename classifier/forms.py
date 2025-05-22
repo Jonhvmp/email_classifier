@@ -1,6 +1,9 @@
 from django import forms
 from .models import Email
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 class EmailForm(forms.ModelForm):
     """
@@ -40,46 +43,35 @@ class EmailForm(forms.ModelForm):
         self.fields['content'].required = False
 
     def clean(self):
-        print("Iniciando validação do formulário...")
         cleaned_data = super().clean()
         input_method = cleaned_data.get('input_method')
         content = cleaned_data.get('content')
         file = cleaned_data.get('file')
-        print(f"Input method: {input_method}")
-        print(f"Content present: {'Sim' if content else 'Não'}")
-        print(f"File present: {'Sim' if file else 'Não'}")
 
-        use_file_subject = cleaned_data.get('use_file_subject', False)
-        use_file_sender = cleaned_data.get('use_file_sender', False)
-        print(f"Usar campo de assunto: {use_file_subject}")
-        print(f"Usar campo de remetente: {use_file_sender}")
+        logger.info(f"Validando formulário - Método: {input_method}, Conteúdo: {'Presente' if content else 'Ausente'}, Arquivo: {'Presente' if file else 'Ausente'}")
 
+        # Validar com base no método de entrada
         if input_method == 'text' and not content:
             self.add_error('content', 'Por favor, insira o conteúdo do email.')
+
         if input_method == 'file':
             if not file:
-                print("Erro: Arquivo não fornecido no modo upload")
                 self.add_error('file', 'Por favor, faça upload de um arquivo.')
 
-            # Se marcou para usar o campo de assunto manual e não preencheu
-            if use_file_subject and not cleaned_data.get('subject'):
-                print("Erro: Campo de assunto vazio mas checkbox marcado")
+            # Verificar campos opcionais
+            if cleaned_data.get('use_file_subject') and not cleaned_data.get('subject'):
                 self.add_error('subject', 'Por favor, preencha o assunto ou desmarque a opção para definir manualmente.')
 
-            # Se marcou para usar o campo de remetente manual e não preencheu
-            if use_file_sender and not cleaned_data.get('sender'):
-                print("Erro: Campo de remetente vazio mas checkbox marcado")
+            if cleaned_data.get('use_file_sender') and not cleaned_data.get('sender'):
                 self.add_error('sender', 'Por favor, preencha o remetente ou desmarque a opção para definir manualmente.')
 
-            # Verificar a extensão do arquivo se ele existir
+            # Verificar extensão do arquivo
             if file:
                 ext = os.path.splitext(file.name)[1].lower()
                 if ext not in ['.txt', '.pdf']:
-                    print(f"Erro: Tipo de arquivo inválido: {ext}")
                     self.add_error('file', 'Apenas arquivos .txt ou .pdf são permitidos.')
                 else:
-                    print(f"Tipo de arquivo aceito: {ext}")
                     # Salvar o tipo de arquivo
-                    self.cleaned_data['file_type'] = ext[1:] 
+                    self.cleaned_data['file_type'] = ext[1:]
 
         return self.cleaned_data

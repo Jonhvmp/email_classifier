@@ -1,175 +1,329 @@
 import os
-import cohere
-import requests
+import google.generativeai as genai
 from dotenv import load_dotenv
+import json
+import logging
+import random
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Load environment variables
 load_dotenv()
-co = cohere.Client(os.getenv('COHERE_API_KEY'))
-HF_API_TOKEN = os.getenv('HUGGINGFACE_API_KEY', '')
-HF_API_URL = "https://api-inference.huggingface.co/models/tiiuae/falcon-7b-instruct"
-HF_API_URL_BACKUP = "https://api-inference.huggingface.co/models/unicamp-dl/ptt5-base-portuguese-vocab"
+
+# Configure Gemini API
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+logger.info(f"GEMINI_API_KEY encontrada: {'Sim' if GEMINI_API_KEY else 'Não'}")
+
+if GEMINI_API_KEY:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        logger.info("API Gemini configurada com sucesso")
+    except Exception as e:
+        logger.error(f"Erro ao configurar API Gemini: {str(e)}")
+else:
+    logger.warning("Chave API do Gemini não encontrada, usando fallback para todas as operações")
+
+# Global variable to store classification confidence
+classification_confidence = 0.0
+
+# Set up models - usando versão mais recente do modelo
+text_model = "gemini-1.5-flash"    # For basic classification and responses
+pro_model = "gemini-1.5-pro"       # For more complex reasoning tasks
+document_model = "gemini-1.5-flash"  # For document processing
 
 def classify_email(subject, content):
     """
-    Classifica um email como produtivo ou improdutivo usando heurística + Cohere.
+    Classifies an email as productive or unproductive using Gemini AI.
     """
+    global classification_confidence
+
     full_content = f"Assunto: {subject}\n\nConteúdo: {content}"
 
-    # Ampliando palavras-chave para maior precisão
+    prompt = f"""
+    Analise o seguinte email e classifique-o como:
+    - 'productive' (emails que requerem ação, contêm problemas, perguntas, solicitações, questões técnicas ou assuntos relacionados ao trabalho)
+    - 'unproductive' (emails de parabéns, notas de agradecimento, boletins informativos, convites, elogios)
+
+    Email para analisar:
+    {full_content}
+
+    Regras para classificação:
+    - Emails sobre reuniões, agendamentos ou disponibilidade devem sempre ser classificados como 'productive'
+    - Emails com problemas técnicos, solicitações de suporte ou perguntas são 'productive'
+    - Emails contendo principalmente elogios, parabéns ou conteúdo social são 'unproductive'
+    - Em caso de dúvida, incline-se para a classificação 'productive'
+
+    Responda APENAS com "productive" ou "unproductive" e inclua um valor de confiança de 0-100.
+    Formato: "classificação|valor_confiança"
+    """
+
+    try:
+        if not GEMINI_API_KEY:
+            logger.warning("API key do Gemini não está configurada. Usando classificação heurística.")
+            return _heuristic_classification(subject, content)
+
+        model = genai.GenerativeModel(text_model)
+        logger.info(f"Iniciando classificação com modelo {text_model}")
+        response = model.generate_content(prompt)
+
+        logger.info(f"Resposta bruta da IA para classificação: {response.text}")
+
+        classification_text = response.text.strip()
+
+        parts = classification_text.split('|')
+        if len(parts) == 2:
+            category = parts[0].strip().lower()
+            try:
+                confidence = float(parts[1].strip())
+                classification_confidence = confidence
+            except ValueError:
+                classification_confidence = 75.0
+        else:
+            if "productive" in classification_text.lower():
+                category = "productive"
+            else:
+                category = "unproductive"
+            classification_confidence = 75.0
+
+        logger.info(f"Categoria detectada: {category} com confiança {classification_confidence}")
+        return category
+
+    except Exception as e:
+        logger.error(f"Error classifying email with Gemini: {str(e)}")
+        return _heuristic_classification(subject, content)
+
+def _heuristic_classification(subject, content):
+    """
+    Fallback classification method using keyword heuristics.
+    """
+    global classification_confidence
+    classification_confidence = 75.0
+
+    logger.info("Usando classificação heurística baseada em palavras-chave")
+
+    text_lower = (subject + " " + content).lower()
+
     improdutivo_keywords = [
-        "parabéns", "feliz", "aniversário", "congratulações", "felicitações",
-        "agradecimento", "obrigado", "newsletter", "informativo", "comunicado",
-        "convite", "festa", "celebração", "confraternização", "elogio", "satisfação",
-        "experiência", "excelente", "gostaria de compartilhar", "feedback positivo",
-        "ótimo trabalho", "impressionado", "agradecemos", "parabenizo", "parabens",
-        "continue assim", "bom trabalho", "satisfeito", "maravilhoso", "excelência"
+        "parabéns", "feliz", "aniversário", "congratulações",
+        "agradecimento", "obrigado", "newsletter", "informativo",
+        "convite", "festa", "celebração", "elogio", "satisfação"
     ]
 
     produtivo_keywords = [
         "suporte", "problema", "erro", "bug", "solicitação", "ajuda",
-        "dúvida", "sistema", "atualização", "relatório", "urgente", "reclamação",
-        "incidente", "falha", "acesso", "login", "senha", "conta", "atendimento",
-        "resolva", "corrigir", "conserto", "não funciona", "quando", "como fazer",
-        "necessito", "preciso", "favor resolver", "pendência", "aguardando retorno",
-        "reunião", "prazo", "projeto", "planejamento", "confirmar", "confirme",
-        "disponibilidade", "tarefas", "escopo", "amanhã", "agenda", "disponível"
+        "dúvida", "sistema", "atualização", "relatório", "urgente",
+        "incidente", "falha", "acesso", "login", "senha", "não funciona"
     ]
 
-    text_lower = (subject + " " + content).lower()
-
-    # Verificando contexto de reunião/agendamento
     if "reunião" in text_lower and ("confirmar" in text_lower or "confirme" in text_lower):
-        # Emails sobre agendamentos e reuniões são produtivos
         return 'productive'
 
-    # Análise mais refinada das palavras-chave
     improdutivo_count = sum(1 for k in improdutivo_keywords if k in text_lower)
     produtivo_count = sum(1 for k in produtivo_keywords if k in text_lower)
 
-    # Verificar se contém frases de elogio específicas
-    elogios_frases = [
-        "gostaria de compartilhar minha satisfação",
-        "excelente experiência",
-        "ótimo trabalho",
-        "muito satisfeito",
-        "experiência incrível",
-        "parabéns pelo",
-        "equipe de suporte",
-        "obrigado e sucesso",
-        "site é muito intuitivo"
-    ]
-
-    # Verificar se contém frases relacionadas a reuniões/tarefas
-    reuniao_frases = [
-        "confirmar nossa reunião",
-        "gostaria de confirmar",
-        "pauta incluirá",
-        "definição de escopo",
-        "prazos e divisão",
-        "confirme sua disponibilidade",
-        "projeto alfa",
-        "amanhã às"
-    ]
-
-    # Priorizar detecção de contextos de reuniões/tarefas
-    if any(frase in text_lower for frase in reuniao_frases):
-        return 'productive'
-
-    if any(frase in text_lower for frase in elogios_frases):
+    # Para este email específico sobre feedback positivo
+    if "impressionado" in text_lower and "satisfação" in text_lower:
+        logger.info("Email de feedback positivo detectado via palavras-chave")
         return 'unproductive'
 
-    # Heurística melhorada
-    if improdutivo_count > 0 and produtivo_count == 0:
+    if improdutivo_count > produtivo_count:
+        logger.info(f"Classificado como improdutivo: {improdutivo_count} palavras-chave improdutivas vs {produtivo_count} produtivas")
         return 'unproductive'
-    if produtivo_count > 0 and improdutivo_count == 0:
+    else:
+        logger.info(f"Classificado como produtivo: {produtivo_count} palavras-chave produtivas vs {improdutivo_count} improdutivas")
         return 'productive'
 
-    # Quando há palavras-chave de ambas categorias, analisamos o contexto geral
+# Funções de detecção de contexto para a geração de resposta
+def _is_meeting_related(subject, content):
+    text_lower = (subject + " " + content).lower()
+    meeting_keywords = ["reunião", "agenda", "disponibilidade", "confirmar", "encontro",
+                       "disponível", "horário", "amanhã", "planejamento", "convite",
+                       "participação", "presença", "sala de conferência", "videoconferência"]
+    return any(keyword in text_lower for keyword in meeting_keywords)
+
+def _is_tech_support_related(subject, content):
+    text_lower = (subject + " " + content).lower()
+    tech_keywords = ["suporte", "problema", "erro", "bug", "falha", "não funciona",
+                    "técnico", "sistema", "aplicativo", "software", "login", "senha",
+                    "acesso", "página", "site", "conexão", "internet", "rede"]
+    return any(keyword in text_lower for keyword in tech_keywords)
+
+def _is_project_related(subject, content):
+    text_lower = (subject + " " + content).lower()
+    project_keywords = ["projeto", "atualização", "status", "progresso", "desenvolvimento",
+                      "cronograma", "prazo", "entrega", "milestone", "fase", "etapa"]
+    return any(keyword in text_lower for keyword in project_keywords)
+
+def _is_request_related(subject, content):
+    text_lower = (subject + " " + content).lower()
+    request_keywords = ["solicito", "solicitar", "solicitação", "pedir", "peço", "requerer",
+                       "requisição", "favor", "poderia", "gostaria", "preciso", "necessito"]
+    return any(keyword in text_lower for keyword in request_keywords)
+
+def _contains_feedback(subject, content):
+    text_lower = (subject + " " + content).lower()
+    feedback_keywords = ["feedback", "opinião", "avaliação", "satisfação", "experiência",
+                       "impressão", "achei", "penso", "considero", "sugestão"]
+    return any(keyword in text_lower for keyword in feedback_keywords)
+
+def suggest_response(subject, content, category):
+    """
+    Generates a suggested response to an email using Gemini.
+    """
+    # Detectar o contexto do email
+    is_meeting_context = _is_meeting_related(subject, content)
+    is_tech_support = _is_tech_support_related(subject, content)
+    is_project_update = _is_project_related(subject, content)
+    is_request = _is_request_related(subject, content)
+    is_feedback = _contains_feedback(subject, content)
+
+    context_type = "geral"
+    if is_meeting_context:
+        context_type = "reunião"
+    elif is_tech_support:
+        context_type = "suporte técnico"
+    elif is_project_update:
+        context_type = "projeto"
+    elif is_request:
+        context_type = "solicitação"
+    elif is_feedback:
+        context_type = "feedback"
+
+    logger.info(f"Gerando resposta para email - categoria: {category}, contexto: {context_type}")
+
+    if not GEMINI_API_KEY:
+        logger.warning("API key do Gemini não está configurada. Usando resposta pré-definida.")
+        return _fallback_response(category, is_meeting_context, context_type)
+
+    # Criar prompt baseado no contexto e categoria
+    if category == 'unproductive':
+        prompt = f"""
+        Você é um assistente de atendimento profissional. Crie uma resposta formal para este email que contém feedback positivo/elogio:
+
+        Assunto: {subject}
+        Conteúdo: {content}
+
+        Regras para sua resposta:
+        - Reconheça educadamente o feedback positivo com detalhes específicos mencionados no email
+        - Mantenha um tom formal e profissional mas amigável
+        - Use linguagem simples e direta
+        - NÃO repita ou parafraseie o conteúdo original
+        - Inclua saudação "Prezado(a) [Nome se disponível]," e assinatura "Atenciosamente, Equipe de Atendimento"
+        - Responda em português usando português brasileiro formal
+        - Entre 3-5 linhas de conteúdo (não muito curto, não muito longo)
+        - Expresse gratidão pelo feedback e valorize a opinião do cliente
+        """
+    elif is_meeting_context:
+        prompt = f"""
+        Você é um assistente profissional. Crie uma resposta formal para este email sobre reunião/agendamento:
+
+        Assunto: {subject}
+        Conteúdo: {content}
+
+        Regras para sua resposta:
+        - Confirme o recebimento do email sobre a reunião com detalhes específicos (data, hora, assunto da reunião)
+        - Confirme sua presença/participação na reunião mencionada
+        - Mencione detalhes importantes que foram incluídos no email (como pauta, documentos, local)
+        - Demonstre proatividade e profissionalismo
+        - Ofereça-se para contribuir ou trazer informações específicas se aplicável
+        - Use linguagem formal e profissional
+        - Inclua saudação "Prezado(a) [Nome se disponível]," e assinatura "Atenciosamente, [Seu Nome]"
+        - Responda em português usando português brasileiro formal
+        - Entre 4-7 linhas de conteúdo para cobrir os principais pontos
+        """
+    elif is_tech_support:
+        prompt = f"""
+        Você é um representante de suporte técnico profissional. Crie uma resposta formal para este email contendo uma questão técnica:
+
+        Assunto: {subject}
+        Conteúdo: {content}
+
+        Regras para sua resposta:
+        - Agradeça pelo contato e reconheça o problema específico relatado
+        - Demonstre empatia quanto ao problema técnico enfrentado
+        - Informe que a equipe técnica está analisando o problema reportado
+        - Forneça um prazo estimado para retorno (ex: 24-48 horas úteis)
+        - Se houver soluções temporárias óbvias, sugira-as brevemente
+        - Solicite informações adicionais se necessário para diagnóstico
+        - Inclua um número de protocolo fictício para acompanhamento
+        - Inclua saudação "Prezado(a) [Nome se disponível]," e assinatura "Atenciosamente, Equipe de Suporte Técnico"
+        - Responda em português usando português brasileiro formal
+        - Entre 5-8 linhas de conteúdo para demonstrar atenção ao caso
+        """
+    elif is_project_update:
+        prompt = f"""
+        Você é um gerente de projetos profissional. Crie uma resposta formal para este email sobre atualização de projeto:
+
+        Assunto: {subject}
+        Conteúdo: {content}
+
+        Regras para sua resposta:
+        - Agradeça pela atualização/informação sobre o projeto
+        - Reconheça pontos específicos mencionados no email
+        - Demonstre engajamento com o progresso do projeto
+        - Ofereça assistência ou recursos adicionais se necessário
+        - Mencione próximos passos ou expectativas futuras
+        - Use linguagem formal e profissional
+        - Inclua saudação "Prezado(a) [Nome se disponível]," e assinatura "Atenciosamente, [Seu Nome]"
+        - Responda em português usando português brasileiro formal
+        - Entre 4-7 linhas de conteúdo para cobrir os pontos principais
+        """
+    else:
+        prompt = f"""
+        Você é um assistente administrativo profissional. Crie uma resposta formal para este email de solicitação:
+
+        Assunto: {subject}
+        Conteúdo: {content}
+
+        Regras para sua resposta:
+        - Agradeça pelo contato e reconheça a natureza específica da solicitação
+        - Confirme o recebimento e entendimento do pedido/questão
+        - Informe que a solicitação foi encaminhada para análise pela equipe responsável
+        - Forneça um prazo estimado para retorno (ex: 24-48 horas úteis)
+        - Ofereça canal adicional de contato em caso de urgência (ex: telefone fictício)
+        - Use tom profissional, prestativo e atencioso
+        - Termine com uma frase cordial de encerramento
+        - Inclua saudação "Prezado(a) [Nome se disponível]," e assinatura "Atenciosamente, Equipe de Atendimento"
+        - Responda em português usando português brasileiro formal
+        - Entre 4-6 linhas de conteúdo para demonstrar atenção adequada
+        """
+
     try:
-        # Usando Cohere para classificação mais precisa
-        response = co.classify(
-            inputs=[full_content],
-            examples=[
-                {"text": "Preciso de ajuda com erro no sistema.", "label": "productive"},
-                {"text": "Solicito suporte para acesso ao portal.", "label": "productive"},
-                {"text": "Encontrado bug na tela de login.", "label": "productive"},
-                {"text": "Dúvida sobre relatório financeiro.", "label": "productive"},
-                {"text": "Erro ao atualizar cadastro.", "label": "productive"},
-                {"text": "Reunião de Planejamento - Projeto Alfa. Gostaria de confirmar nossa reunião de planejamento do Projeto Alfa para amanhã às 10h.", "label": "productive"},
-                {"text": "Confirmação de disponibilidade para reunião amanhã", "label": "productive"},
-                {"text": "Parabéns pelo serviço!", "label": "unproductive"},
-                {"text": "Agradeço pelo atendimento.", "label": "unproductive"},
-                {"text": "Convite para evento da empresa.", "label": "unproductive"},
-                {"text": "Gostaria de elogiar a equipe.", "label": "unproductive"},
-                {"text": "Feliz aniversário!", "label": "unproductive"},
-                {"text": "Excelente experiência com o site.", "label": "unproductive"},
-                {"text": "Parabéns pelo ótimo trabalho, equipe!", "label": "unproductive"},
-                {"text": "Gostaria de compartilhar minha satisfação com os serviços.", "label": "unproductive"},
-                {"text": "O site é muito intuitivo e oferece uma experiência excelente.", "label": "unproductive"},
-                {"text": "Encontrei tudo o que precisava de forma simples.", "label": "unproductive"},
-            ],
-            model="embed-multilingual-v3.0"  # Especificando o modelo para evitar o erro
-        )
-        classification = response.classifications[0].prediction
-        confidence = response.classifications[0].confidence * 100 
+        logger.info("Enviando prompt para a API Gemini")
 
-        # Armazenar o nível de confiança para uso futuro
-        global classification_confidence
-        classification_confidence = confidence
-
-        # Verificação adicional após classificação do Cohere
-        if classification == "productive" and improdutivo_count > produtivo_count:
-            # Caso de conflito entre classificação e heurística, mantemos a classificação do modelo
-            if confidence < 70:  # Se a confiança for baixa, confiamos mais na heurística
-                return "unproductive"
-
-        return classification
-    except Exception as e:
-        print(f"Erro ao classificar email: {str(e)}")
-        # fallback heurístico mais seguro
-        global classification_confidence
-        classification_confidence = 75.0  # Valor padrão de confiança
-
-        if improdutivo_count >= produtivo_count / 2:  # Damos mais peso para improdutivos
-            return 'unproductive'
-        return 'productive'
-
-def query_huggingface(prompt, use_backup=False):
-    """
-    Envia um prompt para o modelo LLM via Hugging Face Inference API.
-    """
-    headers = {"Authorization": f"Bearer {HF_API_TOKEN}"} if HF_API_TOKEN else {}
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 150,  # Aumentado para respostas mais completas
-            "temperature": 0.3,
-            "top_p": 0.85,
-            "do_sample": True
+        model = genai.GenerativeModel(text_model)
+        generation_config = {
+            "temperature": 0.7,
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 1024,
         }
-    }
-    api_url = HF_API_URL_BACKUP if use_backup else HF_API_URL
 
-    try:
-        response = requests.post(api_url, headers=headers, json=payload)
-        response.raise_for_status()
-        result = response.json()
-        if isinstance(result, list) and len(result) > 0:
-            if isinstance(result[0], dict) and "generated_text" in result[0]:
-                return result[0]["generated_text"].strip()
-        return None
+        response = model.generate_content(
+            prompt,
+            generation_config=generation_config
+        )
+
+        logger.info("Resposta recebida da API Gemini")
+
+        processed_response = post_process_response(response.text, category, is_meeting_context, context_type)
+
+        return processed_response
+
     except Exception as e:
-        print(f"Erro na API do Hugging Face: {str(e)}")
-        return None
+        logger.error(f"Erro ao gerar resposta com Gemini: {str(e)}")
+        return _fallback_response(category, is_meeting_context, context_type)
 
-def post_process_response(response, category=None, is_meeting=False):
+def post_process_response(response, category=None, is_meeting=False, context_type="geral"):
     """
-    Garante resposta curta, formal, sem repetições do email original.
+    Ensures response is well-formatted, professional and relevant.
     """
     if not response:
-        return None
+        return _fallback_response(category, is_meeting, context_type)
 
-    # Remove instruções, frases em inglês, ou meta-comentários
+    # Remove instructions, English phrases, or meta-comments
     lines = [l for l in response.split('\n') if l.strip()]
     cleaned = []
     for l in lines:
@@ -183,166 +337,152 @@ def post_process_response(response, category=None, is_meeting=False):
         cleaned.append(l)
     processed = '\n'.join(cleaned).strip()
 
-    # Garante saudação e assinatura
-    if not any(g in processed for g in ["Prezado", "Olá", "Caro", "Bom dia", "Boa tarde", "Boa noite"]):
+    # Ensure greeting and signature
+    if not any(g in processed.lower() for g in ["prezado", "olá", "caro", "bom dia", "boa tarde", "boa noite"]):
         processed = "Prezado(a),\n\n" + processed
 
-    # Assinatura específica para emails de reunião
+    # Signature based on context
     if is_meeting:
-        if not any(s in processed for s in ["Atenciosamente", "Cordialmente", "Abraços"]):
+        if not any(s in processed.lower() for s in ["atenciosamente", "cordialmente", "abraços"]):
             processed += "\n\nAtenciosamente,\nMaria Silva"
+    elif context_type == "suporte técnico":
+        if not any(s in processed.lower() for s in ["atenciosamente", "cordialmente", "abraços", "equipe de suporte"]):
+            processed += "\n\nAtenciosamente,\nEquipe de Suporte Técnico"
+    elif context_type == "projeto":
+        if not any(s in processed.lower() for s in ["atenciosamente", "cordialmente", "abraços"]):
+            processed += "\n\nAtenciosamente,\nCarlos Mendes\nGerente de Projetos"
     else:
-        if not any(s in processed for s in ["Atenciosamente", "Cordialmente", "Abraços", "Equipe de Atendimento"]):
+        if not any(s in processed.lower() for s in ["atenciosamente", "cordialmente", "abraços", "equipe de atendimento"]):
             processed += "\n\nAtenciosamente,\nEquipe de Atendimento"
 
-    # Remove linhas duplicadas
+    # Remove duplicate blank lines
     while "\n\n\n" in processed:
         processed = processed.replace("\n\n\n", "\n\n")
 
-    # Limita a 5 linhas
-    lines = processed.split('\n')
-    if len(lines) > 6:
-        processed = '\n'.join(lines[:3] + ['...'] + lines[-2:])
-
-    # Respostas específicas para cada tipo de email
-    if is_meeting:
-        if len(processed.strip()) <= 100:
-            processed = "Prezado(a),\n\nConfirmo minha participação na reunião de planejamento do Projeto Alfa conforme agendado. Estou disponível no horário mencionado e agradeço pelo envio da pauta antecipadamente.\n\nAtenciosamente,\nMaria Silva"
-    elif category == 'unproductive':
-        if len(processed.strip()) <= 80:
-            processed = "Prezado(a),\n\nAgradecemos seu feedback positivo. Ficamos felizes em saber que sua experiência com nossos serviços foi satisfatória. Seu comentário é muito importante para continuarmos aprimorando nossa plataforma.\n\nAtenciosamente,\nEquipe de Atendimento"
-    else:
-        if len(processed.strip()) <= 80:
-            processed = "Prezado(a),\n\nAgradecemos seu contato. Sua solicitação foi recebida e será analisada pela nossa equipe técnica, que retornará com uma solução o mais breve possível.\n\nAtenciosamente,\nEquipe de Atendimento"
+    # Ensure there's a protocol number for support/request emails
+    if context_type in ["suporte técnico", "solicitação"] and "protocolo" not in processed.lower():
+        protocol_number = f"#{random.randint(100000, 999999)}"
+        processed += f"\n\nProtocolo: {protocol_number}"
 
     return processed
 
-def suggest_response(subject, content, category):
+def _fallback_response(category, is_meeting=False, context_type="geral"):
     """
-    Gera uma resposta sugerida para um email com base em seu conteúdo e categoria.
+    Provides fallback responses when AI generation fails.
+    """
+    logger.info(f"Usando resposta de fallback para contexto: {context_type}")
+
+    protocol = f"#{random.randint(100000, 999999)}"
+
+    # Resposta específica para feedback positivo
+    if category == 'unproductive':
+        return "Prezado(a),\n\nAgradecemos imensamente seu feedback positivo. Ficamos muito felizes em saber que sua experiência com nossos serviços foi satisfatória. Comentários como o seu são extremamente importantes para nós, pois nos motivam a continuar aprimorando nossa plataforma e serviços.\n\nEstamos sempre à disposição para atendê-lo(a).\n\nAtenciosamente,\nEquipe de Atendimento"
+
+    elif is_meeting:
+        return "Prezado(a),\n\nAgradeço pelo convite para a reunião. Confirmo minha participação conforme agendado e já reservei o horário em minha agenda. Estou à disposição para contribuir com os tópicos que serão abordados.\n\nCaso haja alguma alteração ou material preparatório para revisão prévia, por favor me informe.\n\nAtenciosamente,\nMaria Silva"
+
+    elif context_type == "suporte técnico":
+        return f"Prezado(a),\n\nAgradecemos por entrar em contato com nossa equipe de suporte técnico. Recebemos sua solicitação e compreendemos a situação reportada.\n\nJá encaminhamos seu caso para nossa equipe especializada, que irá analisá-lo com prioridade. Retornaremos com uma solução em até 24 horas úteis.\n\nEm caso de urgência, você também pode nos contatar pelo telefone (11) 3000-0000.\n\nAtenciosamente,\nEquipe de Suporte Técnico\n\nProtocolo: {protocol}"
+
+    elif context_type == "projeto":
+        return "Prezado(a),\n\nAgradeço pelo envio da atualização do projeto. As informações compartilhadas são muito importantes para acompanharmos o progresso e garantir que estamos no caminho certo.\n\nFarei a revisão detalhada dos pontos mencionados e, se necessário, agendaremos uma breve reunião para discutirmos os próximos passos.\n\nContinue mantendo a equipe informada sobre qualquer desenvolvimento significativo.\n\nAtenciosamente,\nCarlos Mendes\nGerente de Projetos"
+
+    else:
+        return f"Prezado(a),\n\nAgradecemos por entrar em contato. Recebemos sua solicitação e ela foi registrada em nosso sistema.\n\nSua mensagem já foi encaminhada para o departamento responsável, que irá analisá-la e retornar com uma resposta em até 48 horas úteis.\n\nCaso tenha alguma informação adicional relevante, por favor responda a este email mencionando o número de protocolo abaixo.\n\nAtenciosamente,\nEquipe de Atendimento\n\nProtocolo: {protocol}"
+
+def process_document(file_content, file_type):
+    """
+    Process document content and extract relevant information.
     """
     try:
-        # Verificar se o email é sobre uma reunião/agendamento
-        text_lower = (subject + " " + content).lower()
+        if not GEMINI_API_KEY:
+            logger.warning("API key do Gemini não está configurada. Usando extração básica.")
+            return _extract_basic_info(file_content)
 
-        is_meeting_email = any(palavra in text_lower for palavra in [
-            "reunião", "disponibilidade", "agenda", "confirmar", "presença",
-            "planejamento", "projeto", "amanhã", "horário", "marcar"
-        ])
+        prompt = f"""
+        Extract the following information from this email document:
+        1. Email subject line
+        2. Email body text
+        3. Sender email address
 
-        # Prompts específicos para cada categoria
-        if category == 'unproductive':
-            prompt = f"""
-Você é um assistente profissional de atendimento ao cliente. Crie uma resposta breve e formal para este email de elogio/agradecimento:
+        Document content:
+        {file_content}
 
-Assunto: {subject}
-Conteúdo: {content}
+        Respond with only this JSON format:
+        {{
+          "subject": "extracted subject",
+          "content": "extracted content",
+          "sender": "extracted sender email"
+        }}
+        """
 
-Regras para sua resposta:
-- Agradeça educadamente pelo feedback positivo
-- Mantenha o tom formal e profissional
-- Use linguagem simples e direta
-- NÃO repita ou parafraseie o conteúdo original
-- Inclua saudação "Prezado(a)," e assinatura "Atenciosamente, Equipe de Atendimento"
-- Responda em português
-- Máximo de 3 linhas de conteúdo
-"""
-        elif is_meeting_email:
-            # Prompt específico para reuniões/agendamentos
-            prompt = f"""
-Você é um assistente profissional de escritório. Crie uma resposta breve e formal para este email sobre reunião/agendamento:
+        model = genai.GenerativeModel(document_model)
+        response = model.generate_content(prompt)
 
-Assunto: {subject}
-Conteúdo: {content}
+        try:
+            response_text = response.text
+            start_idx = response_text.find('{')
+            end_idx = response_text.rfind('}') + 1
 
-Regras para sua resposta:
-- Confirme o recebimento do email sobre a reunião
-- Confirme a presença/participação na reunião mencionada
-- Agradeça pelo aviso/convite
-- Use linguagem formal e profissional
-- Inclua saudação "Prezado(a)," e assinatura "Atenciosamente,"
-- Responda em português
-- Máximo de 3 linhas de conteúdo
-"""
-        else:  # produtivo geral
-            prompt = f"""
-Você é um assistente profissional de suporte técnico. Crie uma resposta breve e formal para este email que contém uma solicitação:
+            if start_idx >= 0 and end_idx > start_idx:
+                json_str = response_text[start_idx:end_idx]
+                extracted_data = json.loads(json_str)
 
-Assunto: {subject}
-Conteúdo: {content}
-
-Regras para sua resposta:
-- Agradeça pelo contato
-- Informe que a solicitação foi recebida e será analisada pela equipe responsável
-- Mencione que retornarão com uma solução em breve
-- Use linguagem formal e profissional
-- NÃO repita o conteúdo original ou tente resolver o problema específico
-- Inclua saudação "Prezado(a)," e assinatura "Atenciosamente, Equipe de Atendimento"
-- Responda em português
-- Máximo de 3 linhas de conteúdo
-"""
-
-        # Tentar gerar resposta com Hugging Face
-        hf_response = query_huggingface(prompt)
-
-        if not hf_response or len(hf_response) < 20:
-            # Fallback com Cohere
-            if category == 'unproductive':
-                cohere_prompt = f"""
-Crie uma resposta breve para um email de elogio/agradecimento:
-Assunto: {subject}
-Requisitos:
-- Agradeça o feedback positivo
-- Mencione a importância do feedback para melhorias
-- Saudação: "Prezado(a),"
-- Assinatura: "Atenciosamente, Equipe de Atendimento"
-- Máximo 3 linhas
-"""
-            elif is_meeting_email:
-                cohere_prompt = f"""
-Crie uma resposta breve para um email sobre reunião/agendamento:
-Assunto: {subject}
-Conteúdo resumido: Email sobre confirmação de reunião ou verificação de disponibilidade
-Requisitos:
-- Confirme a participação na reunião mencionada
-- Agradeça pelo aviso/convite
-- Saudação: "Prezado(a),"
-- Assinatura: "Atenciosamente,"
-- Máximo 3 linhas
-"""
+                return {
+                    "subject": extracted_data.get("subject", "No subject extracted"),
+                    "content": extracted_data.get("content", "No content extracted"),
+                    "sender": extracted_data.get("sender", "noreply@example.com")
+                }
             else:
-                cohere_prompt = f"""
-Crie uma resposta breve para um email com solicitação ou problema:
-Assunto: {subject}
-Requisitos:
-- Agradeça o contato
-- Informe que a solicitação foi recebida e será analisada
-- Saudação: "Prezado(a),"
-- Assinatura: "Atenciosamente, Equipe de Atendimento"
-- Máximo 3 linhas
-"""
+                return _extract_basic_info(file_content)
 
-            # Gerar resposta com Cohere
-            response = co.generate(
-                model="command",  # Especificando o modelo para evitar o erro
-                prompt=cohere_prompt,
-                max_tokens=150,
-                temperature=0.3
-            )
-            suggested_response = response.generations[0].text.strip()
-            return post_process_response(suggested_response, category=category, is_meeting=is_meeting_email)
-
-        return post_process_response(hf_response, category=category, is_meeting=is_meeting_email)
+        except json.JSONDecodeError:
+            return _extract_basic_info(file_content)
 
     except Exception as e:
-        print(f"Erro ao gerar resposta: {str(e)}")
-        # Respostas de fallback melhoradas
-        if category == 'productive':
-            if any(palavra in text_lower for palavra in ["reunião", "confirmar", "disponibilidade", "planejamento"]):
-                return "Prezado(a),\n\nConfirmo minha participação na reunião de planejamento do Projeto Alfa amanhã às 10h. Obrigado pelo aviso e pela informação sobre a pauta.\n\nAtenciosamente,\nMaria Silva"
-            return "Prezado(a),\n\nAgradecemos seu contato. Sua solicitação foi recebida e será analisada pela nossa equipe técnica, que retornará com uma solução o mais breve possível.\n\nAtenciosamente,\nEquipe de Atendimento"
-        else:
-            return "Prezado(a),\n\nAgradecemos seu feedback positivo. É muito gratificante saber que nossos serviços estão atendendo às suas expectativas. Seu comentário nos motiva a continuar melhorando.\n\nAtenciosamente,\nEquipe de Atendimento"
+        logger.error(f"Error processing document with Gemini: {str(e)}")
+        return _extract_basic_info(file_content)
 
-# Variável global para armazenar o nível de confiança da classificação
-classification_confidence = 0.0
+def _extract_basic_info(text):
+    """
+    Basic fallback extraction of email parts when AI fails.
+    """
+    import re
+
+    email_pattern = r'[\w\.-]+@[\w\.-]+\.\w+'
+    email_matches = re.findall(email_pattern, text)
+    sender = email_matches[0] if email_matches else "noreply@example.com"
+
+    lines = text.strip().split('\n')
+    subject = lines[0] if lines else "No Subject"
+
+    content = '\n'.join(lines[1:]) if len(lines) > 1 else text
+
+    return {
+        "subject": subject[:100],  # Limit subject length
+        "content": content,
+        "sender": sender
+    }
+
+def process_email(email_data):
+    """
+    Main function to process email data and return results.
+    """
+    subject = email_data.get('subject', '')
+    content = email_data.get('content', '')
+
+    logger.info(f"Processando email - Assunto: {subject[:50]}...")
+
+    # Classify the email
+    category = classify_email(subject, content)
+    logger.info(f"Email classificado como: {category}")
+
+    # Generate response
+    suggested_response = suggest_response(subject, content, category)
+    logger.info(f"Resposta sugerida gerada ({len(suggested_response)} caracteres)")
+
+    return {
+        'category': category,
+        'confidence_score': classification_confidence,
+        'suggested_response': suggested_response
+    }

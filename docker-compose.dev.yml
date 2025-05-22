@@ -8,7 +8,7 @@ services:
     container_name: email-classifier-django-dev
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8001:8001"
     volumes:
       - .:/app
     env_file:
@@ -17,7 +17,25 @@ services:
       - email-classifier-network
     command: >
       sh -c "python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8000"
+             python manage.py runserver 0.0.0.0:8001"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: email-classifier-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    networks:
+      - email-classifier-network
+    depends_on:
+      - django
 
   frontend:
     build:
