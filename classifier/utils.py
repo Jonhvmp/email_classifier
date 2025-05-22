@@ -7,9 +7,7 @@ def clean_text(text):
     """Clean and normalize text."""
     if not text:
         return ""
-    # Remove excessive whitespace
     text = re.sub(r'\s+', ' ', text)
-    # Remove special characters that might interfere with processing
     text = re.sub(r'[^\w\s@.,;:?!-]', '', text)
     return text.strip()
 
@@ -35,14 +33,12 @@ def extract_text_from_file(file_path):
 def extract_from_pdf(file_path):
     """Extract text from PDF file."""
     try:
-        # Read PDF file
         with open(file_path, 'rb') as file:
             pdf = PdfReader(file)
             text = ""
             for page in pdf.pages:
                 text += page.extract_text() + "\n"
 
-        # Use the AI service to process the document
         from .ai_service import process_document
         result = process_document(text, 'pdf')
 
@@ -53,7 +49,6 @@ def extract_from_pdf(file_path):
         )
     except Exception as e:
         print(f"Error extracting text from PDF: {str(e)}")
-        # Fallback - use filename as subject
         filename = os.path.basename(file_path)
         return (filename, f"Failed to process PDF content: {str(e)}", "noreply@example.com")
 
@@ -63,7 +58,6 @@ def extract_from_txt(file_path):
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
             text = file.read()
 
-        # Use the AI service to process the document
         from .ai_service import process_document
         result = process_document(text, 'txt')
 
@@ -74,7 +68,6 @@ def extract_from_txt(file_path):
         )
     except Exception as e:
         print(f"Error extracting text from TXT: {str(e)}")
-        # Fallback - use filename as subject
         filename = os.path.basename(file_path)
         return (filename, f"Failed to process text content: {str(e)}", "noreply@example.com")
 
@@ -153,7 +146,6 @@ def clean_content(text, subject="", sender=""):
         if len(parts) > 1:
             content = parts[0]
 
-    # Limpa espaços em branco duplicados
     content = re.sub(r'\n\s*\n', '\n\n', content)
 
     return content.strip()

@@ -9,7 +9,6 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from .ai_service import process_email
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
 def home(request):

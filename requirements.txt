@@ -6,10 +6,10 @@ numpy>=1.24.0
 scikit-learn>=1.2.0
 python-jose>=3.3.0
 django-cors-headers>=4.0.0
-gunicorn>=20.1.0  # Para deploy
-whitenoise>=6.4.0  # Para servir arquivos estáticos
-cohere==4.52  # Versão mais recente estável
+gunicorn>=20.1.0
+whitenoise>=6.4.0
+cohere==4.52
 pytest==7.4.3
 pytest-django==4.5.2
 huggingface-hub==0.31.4
-google-generativeai>=0.3.0 
+google-generativeai>=0.3.0

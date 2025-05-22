@@ -37,6 +37,24 @@ services:
     depends_on:
       - django
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: email-classifier-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    networks:
+      - email-classifier-network
+    depends_on:
+      - django
+
 networks:
   email-classifier-network:
     driver: bridge
