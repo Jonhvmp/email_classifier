@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 import json
 import logging
 import random
+from .rate_limiter import RateLimiter
+from .job_queue import job_queue
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -15,6 +17,15 @@ load_dotenv()
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 logger.info(f"GEMINI_API_KEY encontrada: {'Sim' if GEMINI_API_KEY else 'Não'}")
+
+# Criar rate limiter para a API do Gemini
+# 60 req/min e 60000 req/dia são os limites padrão para Google Gemini Free Tier
+# Vamos usar limites mais conservadores para garantir
+gemini_limiter = RateLimiter(
+    requests_per_minute=20,  # 60 no free tier, usando 20 para folga
+    requests_per_day=15000,  # 60000 no free tier, usando 15000 para folga
+    name="gemini"
+)
 
 if GEMINI_API_KEY:
     try:
@@ -64,9 +75,18 @@ def classify_email(subject, content):
             logger.warning("API key do Gemini não está configurada. Usando classificação heurística.")
             return _heuristic_classification(subject, content)
 
+        # Verificar rate limiting antes de fazer a chamada
+        if not gemini_limiter.wait_if_needed():
+            logger.warning("Rate limit excedido para o Gemini API, usando classificação heurística.")
+            return _heuristic_classification(subject, content)
+
         model = genai.GenerativeModel(text_model)
         logger.info(f"Iniciando classificação com modelo {text_model}")
         response = model.generate_content(prompt)
+
+        # Log de estatísticas de uso
+        stats = gemini_limiter.get_stats()
+        logger.info(f"Uso da API Gemini: {stats['day_usage']}/{stats['day_limit']} requisições hoje ({stats['day_percent']:.1f}%)")
 
         logger.info(f"Resposta bruta da IA para classificação: {response.text}")
 
@@ -197,6 +217,11 @@ def suggest_response(subject, content, category):
         logger.warning("API key do Gemini não está configurada. Usando resposta pré-definida.")
         return _fallback_response(category, is_meeting_context, context_type)
 
+    # Verificar rate limiting antes de fazer a chamada
+    if not gemini_limiter.wait_if_needed():
+        logger.warning("Rate limit excedido para o Gemini API, usando resposta pré-definida.")
+        return _fallback_response(category, is_meeting_context, context_type)
+
     # Criar prompt baseado no contexto e categoria
     if category == 'unproductive':
         prompt = f"""
@@ -306,6 +331,10 @@ def suggest_response(subject, content, category):
             generation_config=generation_config
         )
 
+        # Log de estatísticas de uso
+        stats = gemini_limiter.get_stats()
+        logger.info(f"Uso da API Gemini: {stats['day_usage']}/{stats['day_limit']} requisições hoje ({stats['day_percent']:.1f}%)")
+
         logger.info("Resposta recebida da API Gemini")
 
         processed_response = post_process_response(response.text, category, is_meeting_context, context_type)
@@ -399,6 +428,11 @@ def process_document(file_content, file_type):
             logger.warning("API key do Gemini não está configurada. Usando extração básica.")
             return _extract_basic_info(file_content)
 
+        # Verificar rate limiting antes de fazer a chamada
+        if not gemini_limiter.wait_if_needed():
+            logger.warning("Rate limit excedido para o Gemini API, usando extração básica.")
+            return _extract_basic_info(file_content)
+
         prompt = f"""
         Extract the following information from this email document:
         1. Email subject line
@@ -418,6 +452,10 @@ def process_document(file_content, file_type):
 
         model = genai.GenerativeModel(document_model)
         response = model.generate_content(prompt)
+
+        # Log de estatísticas de uso
+        stats = gemini_limiter.get_stats()
+        logger.info(f"Uso da API Gemini: {stats['day_usage']}/{stats['day_limit']} requisições hoje ({stats['day_percent']:.1f}%)")
 
         try:
             response_text = response.text
@@ -456,7 +494,7 @@ def _extract_basic_info(text):
     lines = text.strip().split('\n')
     subject = lines[0] if lines else "No Subject"
 
-    content = '\n'.join(lines[1:]) if len(lines) > 1 else text
+    content = '\n'.join(lines[1:]) if len(lines > 1) else text
 
     return {
         "subject": subject[:100],  # Limit subject length
@@ -464,9 +502,118 @@ def _extract_basic_info(text):
         "sender": sender
     }
 
+# Registra handlers para os diferentes tipos de jobs de IA
+def register_ai_handlers():
+    """Registrar manipuladores de jobs para operações de IA"""
+    job_queue.register_job_type("classify_email", handle_classify_email)
+    job_queue.register_job_type("suggest_response", handle_suggest_response)
+    job_queue.register_job_type("process_document", handle_process_document)
+    logger.info("Manipuladores de jobs de IA registrados")
+
+# Handlers individuais para cada tipo de operação
+def handle_classify_email(data):
+    """Handler para jobs de classificação de email"""
+    subject = data.get('subject', '')
+    content = data.get('content', '')
+    return {
+        'category': classify_email(subject, content),
+        'confidence_score': classification_confidence
+    }
+
+def handle_suggest_response(data):
+    """Handler para jobs de sugestão de resposta"""
+    subject = data.get('subject', '')
+    content = data.get('content', '')
+    category = data.get('category', '')
+    return {
+        'suggested_response': suggest_response(subject, content, category)
+    }
+
+def handle_process_document(data):
+    """Handler para jobs de processamento de documento"""
+    file_content = data.get('file_content', '')
+    file_type = data.get('file_type', '')
+    return process_document(file_content, file_type)
+
+# Função wrapper para processar email usando a fila em vez de processamento direto
+def queue_email_processing(email_data):
+    """
+    Coloca o processamento de email na fila e retorna o ID do job
+
+    Args:
+        email_data: Dicionário com subject, content e sender
+
+    Returns:
+        ID do job na fila
+    """
+    job_id = job_queue.enqueue(
+        job_type="classify_email",
+        data=email_data,
+        priority=1
+    )
+
+    logger.info(f"Email enfileirado para classificação com job ID: {job_id}")
+    return job_id
+
+# Função para enfileirar apenas a geração de resposta
+def queue_response_generation(email_data, category):
+    """
+    Coloca a geração de resposta na fila e retorna o ID do job
+
+    Args:
+        email_data: Dicionário com subject, content e sender
+        category: Categoria do email ('productive' ou 'unproductive')
+
+    Returns:
+        ID do job na fila
+    """
+    data = {
+        'subject': email_data.get('subject', ''),
+        'content': email_data.get('content', ''),
+        'category': category
+    }
+
+    job_id = job_queue.enqueue(
+        job_type="suggest_response",
+        data=data,
+        priority=2  # Prioridade média para geração de resposta
+    )
+
+    logger.info(f"Geração de resposta enfileirada com job ID: {job_id}")
+    return job_id
+
+# Função para enfileirar processamento de documento
+def queue_document_processing(file_content, file_type):
+    """
+    Coloca o processamento de documento na fila e retorna o ID do job
+
+    Args:
+        file_content: Conteúdo do arquivo
+        file_type: Tipo do arquivo (ex: 'pdf', 'txt')
+
+    Returns:
+        ID do job na fila
+    """
+    data = {
+        'file_content': file_content,
+        'file_type': file_type
+    }
+
+    job_id = job_queue.enqueue(
+        job_type="process_document",
+        data=data,
+        priority=1  # Alta prioridade para processamento de documento
+    )
+
+    logger.info(f"Processamento de documento enfileirado com job ID: {job_id}")
+    return job_id
+
+# Função para processar email completo (classificação + resposta) de forma síncrona
+# Mantida para compatibilidade com código existente
 def process_email(email_data):
     """
-    Main function to process email data and return results.
+    Função principal para processar email (classificação + resposta sugerida)
+    Mantida para compatibilidade com código existente
     """
     subject = email_data.get('subject', '')
     content = email_data.get('content', '')
@@ -486,3 +633,6 @@ def process_email(email_data):
         'confidence_score': classification_confidence,
         'suggested_response': suggested_response
     }
+
+# Registrar handlers quando o módulo for carregado
+register_ai_handlers()
