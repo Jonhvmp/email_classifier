@@ -3,23 +3,29 @@ import { EmailDetail } from "@/components/email-detail";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { use } from "react";
 
 type Props = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  // Correctly access params in async function
+  // Usar desestruturação após o await
+  const { id } = await params;
+
   return {
-    title: `Email #${params.id} | Classificador de Emails`,
+    title: `Email #${id} | Classificador de Emails`,
     description: "Detalhes do email classificado",
   };
 }
 
-export default function EmailDetailPage({ params }: Props) {
-  // Remove 'async' and directly use params without await
+export default function EmailDetailPage(props: Props) {
+  // Usar o hook 'use' do React para consumir a Promise
+  const { params } = props;
+  const { id } = use(params);
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
@@ -32,8 +38,8 @@ export default function EmailDetailPage({ params }: Props) {
       </div>
 
       <div className="bg-card rounded-lg border p-6 shadow-sm">
-        <h1 className="text-2xl font-bold mb-6">Detalhes do Email #{params.id}</h1>
-        <EmailDetail id={params.id} />
+        <h1 className="text-2xl font-bold mb-6">Detalhes do Email #{id}</h1>
+        <EmailDetail id={id} />
       </div>
     </div>
   );
