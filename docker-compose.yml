@@ -1,16 +1,14 @@
-version: '3.8'
-
 services:
   django:
     build:
-      context: .
+      context: ./server
       dockerfile: Dockerfile
     container_name: email-classifier-django
     restart: unless-stopped
     ports:
-      - "8001:8001"
+      - "8000:8000"
     volumes:
-      - .:/app
+      - ./server:/app
     env_file:
       - .env
     networks:
@@ -18,7 +16,7 @@ services:
     command: >
       sh -c "python manage.py migrate &&
              python manage.py collectstatic --noinput &&
-             python manage.py runserver 0.0.0.0:8001"
+             python manage.py runserver 0.0.0.0:8000"
 
   frontend:
     build:

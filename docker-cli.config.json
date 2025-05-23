@@ -1,0 +1,17 @@
+{
+  "projectName": "Email Classifier",
+  "dockerCompose": "docker compose",
+  "services": {
+    "django": {
+      "port": 8000,
+      "path": ".",
+      "description": "Aplicação Django de classificação de emails usando IA"
+    },
+    "frontend": {
+      "port": 3000,
+      "path": "./frontend",
+      "description": "Aplicação Next.js para interface do usuário"
+    }
+  },
+  "plugins": []
+}

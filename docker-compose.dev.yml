@@ -1,23 +1,21 @@
-version: '3.8'
-
 services:
   django:
     build:
-      context: .
+      context: ./server
       dockerfile: Dockerfile
     container_name: email-classifier-django-dev
     restart: unless-stopped
     ports:
-      - "8001:8001"
+      - "8000:8000"
     volumes:
-      - .:/app
+      - ./server:/app
     env_file:
       - .env
     networks:
       - email-classifier-network
     command: >
       sh -c "python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8001"
+             python manage.py runserver 0.0.0.0:8000"
 
   frontend:
     build:
@@ -36,28 +34,6 @@ services:
       - email-classifier-network
     depends_on:
       - django
-<<<<<<< HEAD
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: email-classifier-frontend-dev
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-    networks:
-      - email-classifier-network
-    depends_on:
-      - django
-=======
->>>>>>> feature/integrate-AI
-
 networks:
   email-classifier-network:
     driver: bridge
