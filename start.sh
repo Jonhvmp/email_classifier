@@ -1,16 +1,27 @@
 #!/bin/bash
 
-# Verificar se temos DATABASE_URL (indicativo do Railway)
-if [ -z "$DATABASE_URL" ]; then
-    echo "❌ DATABASE_URL não definida. Verifique se o serviço PostgreSQL está conectado no Railway."
+# Verificar variáveis do Railway PostgreSQL
+echo "🔍 Verificando configurações do Railway PostgreSQL..."
+
+if [ -n "$PGHOST" ] && [ -n "$PGDATABASE" ] && [ -n "$PGUSER" ] && [ -n "$POSTGRES_PASSWORD" ]; then
+    echo "✅ Variáveis PostgreSQL encontradas:"
+    echo "   PGHOST: $PGHOST"
+    echo "   PGDATABASE: $PGDATABASE"
+    echo "   PGUSER: $PGUSER"
+    echo "   PGPORT: ${PGPORT:-5432}"
+elif [ -n "$DATABASE_URL" ]; then
+    echo "✅ DATABASE_URL encontrada: ${DATABASE_URL:0:50}..."
+else
+    echo "❌ Configurações de banco de dados não encontradas!"
+    echo "Variáveis disponíveis:"
+    env | grep -E "(DATABASE|PG|POSTGRES)" | sort
     exit 1
 fi
 
-echo "✅ DATABASE_URL encontrada: ${DATABASE_URL:0:50}..."
-echo "🔗 Conectando ao banco de dados..."
+echo "🔗 Conectando ao banco de dados PostgreSQL..."
 
 # Aguardar um momento para conexões se estabilizarem
-sleep 2
+sleep 3
 
 # Entrar no diretório server
 cd server
@@ -21,10 +32,24 @@ if [ ! -f "manage.py" ]; then
     exit 1
 fi
 
-# Verificar conectividade básica sem --deploy para evitar erros extras
+# Mostrar informações de debug do Django
+echo "🧪 Verificando configurações do Django..."
+python manage.py diffsettings | grep -i database || echo "Não foi possível mostrar configurações"
+
+# Verificar conectividade básica
 echo "🧪 Testando conectividade básica com banco..."
-python manage.py check || {
+python manage.py check --database default || {
     echo "❌ Falha na verificação básica do Django"
+    echo "Tentando diagnosticar o problema..."
+    python manage.py shell -c "
+import os
+print('DATABASE_URL:', os.environ.get('DATABASE_URL', 'NÃO DEFINIDA'))
+print('PGHOST:', os.environ.get('PGHOST', 'NÃO DEFINIDA'))
+print('PGDATABASE:', os.environ.get('PGDATABASE', 'NÃO DEFINIDA'))
+from django.conf import settings
+print('Engine configurado:', settings.DATABASES['default']['ENGINE'])
+print('Host configurado:', settings.DATABASES['default'].get('HOST', 'N/A'))
+"
     exit 1
 }
 

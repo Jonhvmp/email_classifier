@@ -92,32 +92,80 @@ WSGI_APPLICATION = 'email_classifier.wsgi.application'
 
 # Database configuration for Railway
 # Verificar se estamos no Railway (produção) PRIMEIRO
-if 'DATABASE_URL' in os.environ:
-    print(f"[INFO] DATABASE_URL encontrada: {os.environ['DATABASE_URL'][:50]}...")
+print(f"[DEBUG] Verificando variáveis de ambiente:")
+print(f"[DEBUG] DATABASE_URL presente: {'DATABASE_URL' in os.environ}")
+print(f"[DEBUG] PGHOST presente: {'PGHOST' in os.environ}")
+print(f"[DEBUG] RAILWAY_PRIVATE_DOMAIN presente: {'RAILWAY_PRIVATE_DOMAIN' in os.environ}")
 
-    # Parse da URL do banco de dados fornecida pelo Railway
-    DATABASES = {
-        'default': dj_database_url.parse(
-            os.environ.get('DATABASE_URL'),
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
-    }
+# Verificar múltiplas formas de detectar o Railway
+is_railway = any([
+    'DATABASE_URL' in os.environ,
+    'PGHOST' in os.environ,
+    'RAILWAY_PRIVATE_DOMAIN' in os.environ,
+    'RAILWAY_DEPLOYMENT_DRAINING_SECONDS' in os.environ
+])
 
-    # Configurações específicas para PostgreSQL no Railway
-    DATABASES['default']['OPTIONS'] = {
-        'sslmode': 'require',
-    }
+if is_railway:
+    print(f"[INFO] Ambiente Railway detectado!")
 
-    print(f"[INFO] Usando PostgreSQL: {DATABASES['default']['HOST']}:{DATABASES['default']['PORT']}")
+    # Tentar usar DATABASE_URL primeiro
+    if 'DATABASE_URL' in os.environ:
+        print(f"[INFO] Usando DATABASE_URL: {os.environ['DATABASE_URL'][:50]}...")
+
+        DATABASES = {
+            'default': dj_database_url.parse(
+                os.environ.get('DATABASE_URL'),
+                conn_max_age=600,
+                conn_health_checks=True,
+            )
+        }
+
+        # Configurações específicas para PostgreSQL no Railway
+        DATABASES['default']['OPTIONS'] = {
+            'sslmode': 'require',
+        }
+
+        print(f"[INFO] PostgreSQL configurado via DATABASE_URL")
+
+    # Fallback para variáveis individuais do PostgreSQL
+    elif all(key in os.environ for key in ['PGHOST', 'PGDATABASE', 'PGUSER', 'POSTGRES_PASSWORD']):
+        print(f"[INFO] Usando variáveis individuais do PostgreSQL")
+
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': os.environ.get('PGDATABASE', 'railway'),
+                'USER': os.environ.get('PGUSER', 'postgres'),
+                'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
+                'HOST': os.environ.get('PGHOST', ''),
+                'PORT': os.environ.get('PGPORT', '5432'),
+                'OPTIONS': {
+                    'sslmode': 'require',
+                },
+            }
+        }
+
+        print(f"[INFO] PostgreSQL configurado: {DATABASES['default']['HOST']}:{DATABASES['default']['PORT']}")
+
+    else:
+        print("[ERROR] Railway detectado mas configurações de banco não encontradas!")
+        # Fallback para SQLite em caso de erro
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
 else:
-    print("[INFO] DATABASE_URL não encontrada, usando SQLite para desenvolvimento local")
+    print("[INFO] Ambiente local detectado, usando SQLite")
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+
+print(f"[INFO] Configuração final do banco: {DATABASES['default']['ENGINE']}")
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
