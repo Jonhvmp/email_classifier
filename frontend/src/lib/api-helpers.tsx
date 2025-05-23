@@ -1,5 +1,5 @@
 // API URLs
-const API_BASE = process.env.NEXT_PUBLIC_API_BACKEND || 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_BACKEND || '';
 
 export const API_URLS = {
   EMAILS_LIST: `${API_BASE}/api/emails/`,

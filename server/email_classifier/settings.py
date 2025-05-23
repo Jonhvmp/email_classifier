@@ -110,7 +110,7 @@ if is_railway:
 
     # Tentar usar DATABASE_URL primeiro
     if 'DATABASE_URL' in os.environ:
-        print(f"[INFO] Usando DATABASE_URL: {os.environ['DATABASE_URL'][:50]}...")
+        # print(f"[INFO] Usando DATABASE_URL: {os.environ['DATABASE_URL'][:50]}...")
 
         DATABASES = {
             'default': dj_database_url.parse(

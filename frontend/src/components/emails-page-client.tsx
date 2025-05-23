@@ -150,7 +150,7 @@ export default function EmailsPageClient() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+    <div className="min-h-screen bg-gradient-to-br bg-[#FFFFFF] dark:bg-[#0A0A0A]">
       <div className="container mx-auto px-4 pt-8 pb-8">
         <div className="mb-8" data-emails-container>
           <div className="flex items-center gap-3 mb-4">
