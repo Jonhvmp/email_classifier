@@ -87,26 +87,34 @@ TEMPLATES = [
 WSGI_APPLICATION = 'email_classifier.wsgi.application'
 
 # Database configuration for Railway
-if 'DATABASE_URL' in os.environ:
-    DATABASES = {
-        'default': dj_database_url.parse(
-            os.environ.get('DATABASE_URL'),
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
+}
+
+# Verificar se estamos no Railway (produção)
+if 'DATABASE_URL' in os.environ:
+    # Parse da URL do banco de dados fornecida pelo Railway
+    db_config = dj_database_url.parse(
+        os.environ.get('DATABASE_URL'),
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
+
     # Configurações específicas para PostgreSQL no Railway
-    DATABASES['default']['OPTIONS'] = {
+    db_config['OPTIONS'] = {
         'sslmode': 'require',
     }
-else:
-    # Fallback para desenvolvimento local
+
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
+        'default': db_config
     }
+
+    logger.info(f"Usando PostgreSQL: {db_config['HOST']}:{db_config['PORT']}")
+else:
+    logger.info("Usando SQLite para desenvolvimento local")
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
