@@ -1,6 +1,7 @@
 site_name: Email Classifier System
 site_description: Sistema de Classificação de Emails com IA
 site_author: Jonh Alex
+site_url: https://github.com/Jonhvmp/email_classifier
 
 theme:
   name: material
