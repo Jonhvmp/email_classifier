@@ -145,10 +145,12 @@ COHERE_API_KEY = os.getenv('COHERE_API_KEY', '')
 # Configuração da API do Hugging Face
 HUGGINGFACE_API_TOKEN = os.environ.get("HUGGINGFACE_API_TOKEN", "")
 
+CORS_ORIGIN_FRONT = os.getenv('CORS_ORIGIN_FRONT', 'http://localhost:3000')
+
 # Configurações de CSRF
-CSRF_TRUSTED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000']
+CSRF_TRUSTED_ORIGINS = [CORS_ORIGIN_FRONT, 'http://127.0.0.1:3000']
 CORS_ALLOW_CREDENTIALS = True
-CORS_ORIGIN_WHITELIST = ['http://localhost:3000', 'http://127.0.0.1:3000']
+CORS_ORIGIN_WHITELIST = [CORS_ORIGIN_FRONT, 'http://127.0.0.1:3000']
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

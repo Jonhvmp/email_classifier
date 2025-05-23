@@ -494,7 +494,7 @@ def _extract_basic_info(text):
     lines = text.strip().split('\n')
     subject = lines[0] if lines else "No Subject"
 
-    content = '\n'.join(lines[1:]) if len(lines > 1) else text
+    content = '\n'.join(lines[1:]) if len(lines) > 1 else text
 
     return {
         "subject": subject[:100],  # Limit subject length
@@ -502,12 +502,84 @@ def _extract_basic_info(text):
         "sender": sender
     }
 
+# Função para atualizar o email no banco quando o job for concluído
+def update_email_with_results(email_id, results):
+    """
+    Atualiza um email no banco de dados com os resultados do processamento de IA
+
+    Args:
+        email_id: ID do email no banco de dados
+        results: Dicionário com os resultados de classificação (category, confidence_score, suggested_response)
+    """
+    try:
+        # Importar o modelo dentro da função para evitar importação circular
+        from .models import Email
+        email = Email.objects.get(pk=email_id)
+
+        email.category = results.get('category', 'unknown')
+        email.confidence_score = results.get('confidence_score', 0.0)
+        email.suggested_response = results.get('suggested_response', '')
+        email.save()
+
+        logger.info(f"Email ID {email_id} atualizado com sucesso com os resultados da IA")
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao atualizar email ID {email_id} com resultados: {str(e)}")
+        return False
+
+# Função para processar email completo e atualizar no banco
+def process_email_and_update(email_data, email_id):
+    """
+    Processa um email e atualiza no banco de dados quando concluído
+
+    Args:
+        email_data: Dicionário com os dados do email (subject, content, sender)
+        email_id: ID do email no banco de dados
+
+    Returns:
+        Dicionário com os resultados do processamento
+    """
+    logger.info(f"Processando email ID {email_id} - Assunto: {email_data.get('subject', '')[:30]}...")
+
+    try:
+        # Classificar o email
+        category = classify_email(email_data.get('subject', ''), email_data.get('content', ''))
+
+        # Gerar resposta sugerida
+        suggested_response = suggest_response(
+            email_data.get('subject', ''),
+            email_data.get('content', ''),
+            category
+        )
+
+        results = {
+            'category': category,
+            'confidence_score': classification_confidence,
+            'suggested_response': suggested_response
+        }
+
+        # Atualizar no banco de dados
+        update_email_with_results(email_id, results)
+
+        return results
+    except Exception as e:
+        logger.error(f"Erro ao processar email ID {email_id}: {str(e)}")
+        # Atualizar com erro no banco
+        error_results = {
+            'category': 'error',
+            'confidence_score': 0.0,
+            'suggested_response': f"Erro ao processar: {str(e)}"
+        }
+        update_email_with_results(email_id, error_results)
+        return error_results
+
 # Registra handlers para os diferentes tipos de jobs de IA
 def register_ai_handlers():
     """Registrar manipuladores de jobs para operações de IA"""
     job_queue.register_job_type("classify_email", handle_classify_email)
     job_queue.register_job_type("suggest_response", handle_suggest_response)
     job_queue.register_job_type("process_document", handle_process_document)
+    job_queue.register_job_type("process_email_complete", handle_process_email_complete)
     logger.info("Manipuladores de jobs de IA registrados")
 
 # Handlers individuais para cada tipo de operação
@@ -534,6 +606,21 @@ def handle_process_document(data):
     file_content = data.get('file_content', '')
     file_type = data.get('file_type', '')
     return process_document(file_content, file_type)
+
+# Handler para processamento completo de um email
+def handle_process_email_complete(data):
+    """Handler para jobs de processamento completo de email"""
+    email_data = {
+        'subject': data.get('subject', ''),
+        'content': data.get('content', ''),
+        'sender': data.get('sender', '')
+    }
+    email_id = data.get('email_id')
+
+    if not email_id:
+        raise ValueError("ID do email não fornecido")
+
+    return process_email_and_update(email_data, email_id)
 
 # Função wrapper para processar email usando a fila em vez de processamento direto
 def queue_email_processing(email_data):
@@ -606,6 +693,34 @@ def queue_document_processing(file_content, file_type):
     )
 
     logger.info(f"Processamento de documento enfileirado com job ID: {job_id}")
+    return job_id
+
+# Função para enfileirar processamento completo de email
+def queue_complete_email_processing(email_data, email_id):
+    """
+    Coloca o processamento completo de email na fila e retorna o ID do job
+
+    Args:
+        email_data: Dicionário com subject, content e sender
+        email_id: ID do email no banco de dados
+
+    Returns:
+        ID do job na fila
+    """
+    data = {
+        'subject': email_data.get('subject', ''),
+        'content': email_data.get('content', ''),
+        'sender': email_data.get('sender', ''),
+        'email_id': email_id
+    }
+
+    job_id = job_queue.enqueue(
+        job_type="process_email_complete",
+        data=data,
+        priority=1  # Alta prioridade
+    )
+
+    logger.info(f"Email ID {email_id} enfileirado para processamento completo com job ID: {job_id}")
     return job_id
 
 # Função para processar email completo (classificação + resposta) de forma síncrona

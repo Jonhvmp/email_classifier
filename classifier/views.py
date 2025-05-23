@@ -8,8 +8,8 @@ from .forms import EmailForm
 from .utils import extract_text_from_file
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from .ai_service import process_email, queue_email_processing, gemini_limiter
-from .job_queue import job_queue
+from .ai_service import process_email, queue_email_processing, queue_complete_email_processing, gemini_limiter, job_queue
+from .job_queue import JobStatus  # Adicionando import faltante
 
 logger = logging.getLogger(__name__)
 
@@ -290,8 +290,8 @@ def _process_valid_form_async(form, is_api=False):
     email.suggested_response = "Processando..."
     email.save()
 
-    # Enfileirar para processamento
-    job_id = queue_email_processing(email_data)
+    # Enfileirar para processamento completo com referência ao email
+    job_id = queue_complete_email_processing(email_data, email.pk)
 
     # Retornar resposta ao cliente
     if is_api:
@@ -385,6 +385,23 @@ def api_job_status(request, job_id):
             }, status=404)
 
         job_data = job.to_dict()
+
+        # Adicionar informações do email se for um job de processamento completo
+        if job.job_type == "process_email_complete" and job.status == JobStatus.COMPLETED:
+            email_id = job.data.get('email_id')
+            if email_id:
+                from .models import Email
+                try:
+                    email = Email.objects.get(pk=email_id)
+                    job_data['email'] = {
+                        'id': email.id,
+                        'subject': email.subject,
+                        'category': email.category,
+                        'confidence_score': email.confidence_score,
+                        'is_processed': email.category != 'pending'
+                    }
+                except Email.DoesNotExist:
+                    job_data['email'] = {'error': 'Email não encontrado'}
 
         response = JsonResponse(job_data)
         response["Access-Control-Allow-Origin"] = "*"
