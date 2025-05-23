@@ -17,6 +17,15 @@ from .job_queue import JobStatus
 
 logger = logging.getLogger(__name__)
 
+def get_client_ip(request):
+    """Obtém o IP real do cliente"""
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0].strip()
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
+
 def home(request):
     """
     View da página inicial com formulário para submissão de email.
@@ -28,7 +37,12 @@ def home(request):
         logger.info(f"Processando formulário, é válido? {form.is_valid()}")
 
         if form.is_valid():
+            # Obter IP do usuário
+            user_ip = get_client_ip(request)
+            logger.info(f"Processando email de IP: {user_ip}")
+
             email = form.save(commit=False)
+            email.user_ip = user_ip  # Salvar IP do usuário
             input_method = form.cleaned_data.get('input_method')
 
             if input_method == 'file' and email.file:
@@ -84,7 +98,7 @@ def home(request):
                 logger.info(f"Email processado - Categoria: {email.category}, Confiança: {email.confidence_score:.2f}%")
 
                 email.save()
-                logger.info(f"Email salvo com ID: {email.pk}")
+                logger.info(f"Email salvo com ID: {email.pk} para IP: {user_ip}")
 
                 if is_ajax:
                     return JsonResponse({
@@ -121,20 +135,43 @@ def home(request):
 
 class EmailListView(ListView):
     """
-    View para listar todos os emails classificados.
+    View para listar emails classificados - APENAS DO USUÁRIO ATUAL.
     """
     model = Email
     template_name = 'classifier/email_list.html'
     context_object_name = 'emails'
     paginate_by = 10
 
+    def get_queryset(self):
+        """Filtra emails apenas do IP do usuário atual"""
+        user_ip = get_client_ip(self.request)
+        logger.info(f"Listando emails para IP: {user_ip}")
+        return Email.objects.filter(user_ip=user_ip).order_by('-created_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user_ip = get_client_ip(self.request)
+        context['user_ip'] = user_ip
+        context['total_emails'] = Email.objects.filter(user_ip=user_ip).count()
+        return context
+
 class EmailDetailView(DetailView):
     """
-    View para mostrar os detalhes de um email específico.
+    View para mostrar os detalhes de um email específico - APENAS SE FOR DO USUÁRIO.
     """
     model = Email
     template_name = 'classifier/email_detail.html'
     context_object_name = 'email'
+
+    def get_queryset(self):
+        """Só permite acesso a emails do próprio IP"""
+        user_ip = get_client_ip(self.request)
+        return Email.objects.filter(user_ip=user_ip)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['user_ip'] = get_client_ip(self.request)
+        return context
 
 def about(request):
     """
@@ -372,6 +409,10 @@ def api_submit_email(request):
     logger.info("Recebendo submissão de email via API")
 
     try:
+        # Obter IP do usuário para API
+        user_ip = get_client_ip(request)
+        logger.info(f"API submit email de IP: {user_ip}")
+
         form = EmailForm(request.POST, request.FILES)
 
         if not form.is_valid():
@@ -381,8 +422,8 @@ def api_submit_email(request):
                 'errors': form.errors.as_json()
             }, status=400)
 
-        # Usar versão assíncrona
-        return _process_valid_form_async(form, is_api=True)
+        # Usar versão assíncrona com IP
+        return _process_valid_form_async(form, is_api=True, user_ip=user_ip)
 
     except Exception as e:
         logger.error(f"ERRO geral: {str(e)}")
@@ -391,11 +432,16 @@ def api_submit_email(request):
             'message': f'Erro interno: {str(e)}'
         }, status=500)
 
-def _process_valid_form_async(form, is_api=False):
+def _process_valid_form_async(form, is_api=False, user_ip=None):
     """
     Processa um formulário válido de forma assíncrona usando a fila.
     """
     email = form.save(commit=False)
+
+    # Definir IP do usuário se não fornecido
+    if user_ip:
+        email.user_ip = user_ip
+
     input_method = form.cleaned_data.get('input_method')
 
     # Processar arquivo se enviado
@@ -466,12 +512,47 @@ def _process_valid_form_async(form, is_api=False):
 
     return email
 
-def api_email_detail(request, pk):
+def api_emails_list(request):
     """
-    API para obter detalhes de um email específico.
+    API para listar emails - APENAS DO USUÁRIO ATUAL.
     """
     try:
-        email = get_object_or_404(Email, pk=pk)
+        user_ip = get_client_ip(request)
+        emails = Email.objects.filter(user_ip=user_ip).order_by('-created_at')
+
+        data = []
+        for email in emails:
+            created_at_str = email.created_at.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            data.append({
+                'id': email.id,
+                'subject': email.subject,
+                'sender': email.sender,
+                'category': email.category,
+                'created_at': created_at_str,
+                'confidence_score': email.confidence_score
+            })
+
+        response = JsonResponse({
+            'emails': data,
+            'count': len(data),
+            'user_ip': user_ip  # Para debug
+        })
+        _add_cors_headers(response, request.headers.get('origin'))
+        return response
+
+    except Exception as e:
+        logger.error(f"Erro ao listar emails: {str(e)}")
+        response = JsonResponse({"error": str(e)}, status=500)
+        _add_cors_headers(response, request.headers.get('origin'))
+        return response
+
+def api_email_detail(request, pk):
+    """
+    API para obter detalhes de um email específico - APENAS SE FOR DO USUÁRIO.
+    """
+    try:
+        user_ip = get_client_ip(request)
+        email = get_object_or_404(Email, pk=pk, user_ip=user_ip)  # Filtrar por IP
 
         # Formatando a data para facilitar o processamento no frontend
         created_at_str = email.created_at.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
@@ -493,81 +574,6 @@ def api_email_detail(request, pk):
 
     except Exception as e:
         logger.error(f"Erro ao obter detalhes do email: {str(e)}")
-        response = JsonResponse({"error": str(e)}, status=500)
-        _add_cors_headers(response, request.headers.get('origin'))
-        return response
-
-def api_emails_list(request):
-    """
-    API para listar todos os emails.
-    """
-    try:
-        emails = Email.objects.all().order_by('-created_at')
-        data = []
-
-        for email in emails:
-            created_at_str = email.created_at.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-
-            data.append({
-                'id': email.id,
-                'subject': email.subject,
-                'sender': email.sender,
-                'category': email.category,
-                'created_at': created_at_str,
-                'confidence_score': email.confidence_score
-            })
-
-        response = JsonResponse(data, safe=False)
-        _add_cors_headers(response, request.headers.get('origin'))
-        return response
-
-    except Exception as e:
-        logger.error(f"Erro ao listar emails: {str(e)}")
-        response = JsonResponse({"error": str(e)}, status=500)
-        _add_cors_headers(response, request.headers.get('origin'))
-        return response
-
-@csrf_exempt
-def api_job_status(request, job_id):
-    """
-    API para verificar o status de um job específico.
-    """
-    try:
-        job = job_queue.get_job(job_id)
-
-        if not job:
-            response = JsonResponse({
-                'status': 'error',
-                'message': f'Job não encontrado: {job_id}'
-            }, status=404)
-            _add_cors_headers(response, request.headers.get('origin'))
-            return response
-
-        job_data = job.to_dict()
-
-        # Adicionar informações do email se for um job de processamento completo
-        if job.job_type == "process_email_complete" and job.status == JobStatus.COMPLETED:
-            email_id = job.data.get('email_id')
-            if email_id:
-                from .models import Email
-                try:
-                    email = Email.objects.get(pk=email_id)
-                    job_data['email'] = {
-                        'id': email.id,
-                        'subject': email.subject,
-                        'category': email.category,
-                        'confidence_score': email.confidence_score,
-                        'is_processed': email.category != 'pending'
-                    }
-                except Email.DoesNotExist:
-                    job_data['email'] = {'error': 'Email não encontrado'}
-
-        response = JsonResponse(job_data)
-        _add_cors_headers(response, request.headers.get('origin'))
-        return response
-
-    except Exception as e:
-        logger.error(f"Erro ao obter status do job: {str(e)}")
         response = JsonResponse({"error": str(e)}, status=500)
         _add_cors_headers(response, request.headers.get('origin'))
         return response

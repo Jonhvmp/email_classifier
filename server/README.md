@@ -32,6 +32,11 @@ Sistema de classificação automática de emails usando Inteligência Artificial
 - **Estatísticas de uso** em tempo real
 - **Fallback** automático para método heurístico
 
+### 🔒 Isolamento de Usuários
+- **Isolamento por IP**: Cada usuário vê apenas seus próprios emails
+- **Privacidade garantida**: Dados não são compartilhados entre usuários
+- **Zero autenticação**: Funciona sem necessidade de login/senha
+
 ### 🌐 API RESTful
 - Endpoints para submissão e consulta
 - Suporte completo a **CORS**
@@ -66,8 +71,10 @@ pip install -r requirements.txt
 # 3. Configurar .env
 GEMINI_API_KEY=sua-chave-api
 
-# 4. Executar
+# 4. Executar migrações
 python manage.py migrate
+
+# 5. Iniciar servidor
 python manage.py runserver
 ```
 
@@ -82,12 +89,25 @@ GET /api/status/
 # Submeter email
 POST /api/submit-email/
 
+# Lista de emails (apenas do usuário atual)
+GET /api/emails/
+
+# Detalhes de email específico (apenas se for do usuário)
+GET /api/emails/{id}/
+
 # Status do processamento
 GET /api/jobs/{job_id}/
 
 # Estatísticas de uso
 GET /api/usage/
 ```
+
+## 🛡️ Privacidade e Segurança
+
+- **Isolamento automático**: Cada IP vê apenas seus próprios emails
+- **Sem autenticação**: Privacidade sem complexidade
+- **Rate limiting**: Proteção contra abuso da API
+- **Headers CORS**: Integração segura com frontends
 
 ## 🛠️ Tecnologias
 

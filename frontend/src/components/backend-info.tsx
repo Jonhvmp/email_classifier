@@ -170,6 +170,20 @@ export function BackendInfo() {
             </div>
           </div>
 
+          <div className="rounded-md bg-green-50 p-4 border border-green-200">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-green-800">Privacidade garantida</h3>
+                <div className="mt-2 text-sm text-green-700">
+                  <p>Seus emails são isolados automaticamente. Apenas você pode visualizar os emails que classificar.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {backendStatus === "error" && (
             <div className="rounded-md bg-amber-50 p-4 border border-amber-200">
               <div className="flex">

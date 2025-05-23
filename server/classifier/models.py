@@ -26,6 +26,8 @@ class Email(models.Model):
     # Made null=True to avoid migration issues
     classification_method = models.CharField(max_length=20, default='huggingface', blank=True,
                                            null=True, verbose_name='Método de Classificação')
+    # Novo campo para isolamento por IP
+    user_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name='IP do Usuário')
 
     def __str__(self):
         return f"{self.subject} - {self.category}"
@@ -47,4 +49,5 @@ class Email(models.Model):
             models.Index(fields=['category']),
             models.Index(fields=['created_at']),
             models.Index(fields=['sender']),
+            models.Index(fields=['user_ip']),
         ]
