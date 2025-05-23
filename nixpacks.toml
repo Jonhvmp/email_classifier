@@ -1,22 +1,16 @@
 [phases.setup]
-nixPkgs = ["python311", "python311Packages.pip", "python311Packages.virtualenv"]
-aptPkgs = ["postgresql-client"]
+nixPkgs = ["python311", "python311Packages.pip"]
 
 [phases.install]
 dependsOn = ["setup"]
-cmds = [
-  "cd server && python -m venv venv",
-  "cd server && source venv/bin/activate && pip install --upgrade pip",
-  "cd server && source venv/bin/activate && pip install -r requirements.txt"
-]
+cmds = ["cd server && pip install --break-system-packages -r requirements.txt"]
 
 [phases.build]
 dependsOn = ["install"]
-cmds = ["cd server && source venv/bin/activate && python manage.py collectstatic --noinput"]
+cmds = ["cd server && python manage.py collectstatic --noinput"]
 
 [start]
-cmd = "cd server && source venv/bin/activate && python manage.py migrate && gunicorn email_classifier.wsgi:application --bind 0.0.0.0:$PORT --workers 2"
+cmd = "cd server && python manage.py migrate && gunicorn email_classifier.wsgi:application --bind 0.0.0.0:$PORT --workers 2"
 
 [variables]
 PYTHONPATH = "./server"
-NIXPACKS_PYTHON_VERSION = "3.11"

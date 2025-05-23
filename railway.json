@@ -3,6 +3,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "cd server && pip install --user -r requirements.txt && python manage.py migrate && python manage.py collectstatic --noinput && gunicorn email_classifier.wsgi:application --bind 0.0.0.0:$PORT"
+    "startCommand": "cd server && python -m gunicorn email_classifier.wsgi:application --bind 0.0.0.0:$PORT --workers 2"
   }
 }
