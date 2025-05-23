@@ -1,105 +1,106 @@
-# Email Classifier
+# Email Classifier System
 
-Este é um projeto para classificação de emails e geração de respostas automáticas usando inteligência artificial (Cohere API).
+Sistema de classificação automática de emails usando Inteligência Artificial para determinar se são **produtivos** ou **improdutivos**.
 
-## Requisitos
+## 🤖 Como Funciona
 
-- Python 3.13.3 ou superior
-- Django 4.2.7
-- Cohere API
-- Outras dependências listadas em `requirements.txt`
+1. **Entrada**: Envie um email via texto direto ou upload de arquivo (PDF/TXT)
+2. **Processamento**: IA analisa o conteúdo usando Google Gemini API
+3. **Classificação**: Determina se é produtivo (requer ação) ou improdutivo (informativo)
+4. **Resposta**: Gera sugestão de resposta personalizada baseada no contexto
 
-## Instalação
+## ⚡ Funcionalidades
 
-1. Clone o repositório
-2. Crie um ambiente virtual:
-   ```
-   python -m venv venv
-   ```
-3. Ative o ambiente virtual:
-   - Windows: `venv\Scripts\activate`
-   - Linux/Mac: `source venv/bin/activate`
-4. Instale as dependências:
-   ```
-   pip install -r requirements.txt
-   ```
-5. Crie um arquivo `.env` na raiz do projeto com as seguintes variáveis:
-   ```
-   SECRET_KEY=sua-chave-secreta-aqui
-   DEBUG=True
-   ALLOWED_HOSTS=localhost,127.0.0.1
-   COHERE_API_KEY=sua-chave-api-cohere-aqui
-   ```
-6. Execute as migrações:
-   ```
-   python manage.py migrate
-   ```
-7. Inicie o servidor:
-   ```
-   python manage.py runserver
-   ```
+### 🎯 Classificação Inteligente
+- **Google Gemini AI** para análise de conteúdo
+- **Fallback heurístico** quando API indisponível
+- **Score de confiança** (0-100%) para cada classificação
+- **Contexto adaptativo**: reuniões, suporte técnico, projetos, feedback
 
-## Funcionalidades
+### 📄 Processamento de Arquivos
+- Upload de **PDF** e **TXT**
+- Extração automática de assunto, conteúdo e remetente
+- Opção de override manual dos campos extraídos
 
-- Classificação de emails em duas categorias: Produtivo e Improdutivo
-- Geração de respostas automáticas personalizadas para cada categoria
-- Interface web intuitiva para submissão e visualização dos resultados
-- Armazenamento de histórico de emails classificados
+### 🚀 Sistema Assíncrono
+- **Fila de processamento** para emails
+- **Status em tempo real** via API
+- **Priorização** de jobs por tipo
 
-## Estrutura do Projeto
+### ⚡ Rate Limiting
+- Controle automático de uso da API (20 req/min, 15k req/dia)
+- **Estatísticas de uso** em tempo real
+- **Fallback** automático para método heurístico
 
-```
-email_classifier/
-│
-├── classifier/                # Aplicação principal
-│   ├── migrations/           # Migrações do banco de dados
-│   ├── templates/            # Templates HTML específicos da aplicação
-│   ├── __init__.py
-│   ├── admin.py              # Configuração do admin do Django
-│   ├── ai_service.py         # Serviço de integração com a Cohere API
-│   ├── apps.py
-│   ├── forms.py              # Formulários da aplicação
-│   ├── models.py             # Modelos de dados
-│   ├── tests.py              # Testes automatizados
-│   ├── urls.py               # URLs da aplicação
-│   └── views.py              # Views da aplicação
-│
-├── email_classifier/         # Projeto Django principal
-│   ├── __init__.py
-│   ├── asgi.py
-│   ├── settings.py           # Configurações do projeto
-│   ├── urls.py               # URLs do projeto
-│   └── wsgi.py
-│
-├── templates/                # Templates HTML gerais
-│   └── base.html             # Template base
-│
-├── static/                   # Arquivos estáticos (CSS, JS, imagens)
-│
-├── .env                      # Variáveis de ambiente (não versionado)
-├── .gitignore                # Arquivos ignorados pelo git
-├── manage.py                 # Script de gerenciamento do Django
-├── README.md                 # Documentação do projeto
-└── requirements.txt          # Dependências do projeto
+### 🌐 API RESTful
+- Endpoints para submissão e consulta
+- Suporte completo a **CORS**
+- Integração fácil com frontends
+
+## 🏗️ Categorias
+
+### Produtivo
+Emails que requerem ação ou resposta:
+- Problemas técnicos e solicitações de suporte
+- Reuniões e agendamentos
+- Projetos e atualizações
+- Perguntas e solicitações
+
+### Improdutivo
+Emails informativos ou sociais:
+- Parabéns e felicitações
+- Agradecimentos e elogios
+- Newsletters e informativos
+- Convites sociais
+
+## 🚀 Início Rápido
+
+```bash
+# 1. Clonar repositório
+git clone https://github.com/jonhvmp/email_classifier.git
+cd email_classifier/server
+
+# 2. Instalar dependências
+pip install -r requirements.txt
+
+# 3. Configurar .env
+GEMINI_API_KEY=sua-chave-api
+
+# 4. Executar
+python manage.py migrate
+python manage.py runserver
 ```
 
-## Uso
+Acesse: http://127.0.0.1:8000
 
-1. Acesse a página inicial
-2. Preencha o formulário com os dados do email
-3. Clique em "Classificar"
-4. Visualize a classificação e a resposta sugerida
+## 📊 APIs Principais
 
-## Teste
+```bash
+# Status da API
+GET /api/status/
 
-Para executar os testes:
+# Submeter email
+POST /api/submit-email/
 
+# Status do processamento
+GET /api/jobs/{job_id}/
+
+# Estatísticas de uso
+GET /api/usage/
 ```
-python manage.py test
-```
 
-ou
+## 🛠️ Tecnologias
 
-```
-pytest
-```
+- **Backend**: Django 4.2+
+- **IA**: Google Gemini 1.5 Flash
+- **Processamento**: PyPDF2, Rate Limiting
+- **Deploy**: Railway (recomendado)
+- **Docs**: MkDocs Material
+
+## 📖 Documentação Completa
+
+Para documentação detalhada: [Acesse a documentação](https://jonhvmp.github.io/email_classifier/)
+
+---
+
+**Case desenvolvido para vaga de Engenheiro de Software Jr**

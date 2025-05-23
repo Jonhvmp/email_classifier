@@ -1,0 +1,55 @@
+site_name: Email Classifier System
+site_description: Sistema de Classificação de Emails com IA
+site_author: Jonh Alex
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Arquitetura:
+    - Visão Geral: architecture/overview.md
+    - Modelos de Dados: architecture/models.md
+    - APIs e Endpoints: architecture/apis.md
+  - Funcionalidades:
+    - Classificação de Emails: features/classification.md
+    - Sistema de Filas: features/job-queue.md
+    - Rate Limiting: features/rate-limiting.md
+    - Upload de Arquivos: features/file-upload.md
+  - Configuração:
+    - Variáveis de Ambiente: setup/environment.md
+    - Instalação: setup/installation.md
+    - Deployment: setup/deployment.md
+
+markdown_extensions:
+  - codehilite
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
