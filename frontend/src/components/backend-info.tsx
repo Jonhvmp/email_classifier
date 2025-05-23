@@ -28,9 +28,12 @@ export function BackendInfo() {
           headers: {
             "Accept": "application/json",
             "Origin": window.location.origin,
+            "Cache-Control": "no-cache", // Evitar cache
           },
           signal: controller.signal,
-          cache: 'no-cache'
+          cache: 'no-cache',
+          mode: 'cors',
+          credentials: 'omit', // Não enviar cookies para simplificar
         });
 
         clearTimeout(timeoutId);
@@ -49,7 +52,7 @@ export function BackendInfo() {
 
           if (!localStorage.getItem('backend-warning-shown')) {
             toast.warning("Backend offline", {
-              description: "O servidor backend não está respondendo. Algumas funcionalidades podem não funcionar corretamente."
+              description: `Servidor retornou ${response.status}: ${response.statusText}`
             });
             localStorage.setItem('backend-warning-shown', 'true');
           }
@@ -58,13 +61,20 @@ export function BackendInfo() {
         console.error("Erro ao verificar status do backend:", error);
 
         if (error instanceof Error) {
+          let errorMsg = error.message;
+
+          // Melhor tratamento para erros comuns
           if (error.name === 'AbortError') {
-            setErrorMessage("Timeout");
-          } else if (error.message.includes('Failed to fetch')) {
-            setErrorMessage("Conexão falhou");
-          } else {
-            setErrorMessage(error.message);
+            errorMsg = "Tempo esgotado";
+          } else if (errorMsg.includes('Failed to fetch')) {
+            errorMsg = "Erro de conexão";
+          } else if (errorMsg.includes('NetworkError')) {
+            errorMsg = "Erro de rede";
+          } else if (errorMsg.includes('CORS')) {
+            errorMsg = "Erro de CORS";
           }
+
+          setErrorMessage(errorMsg);
         } else {
           setErrorMessage("Erro desconhecido");
         }
@@ -72,11 +82,18 @@ export function BackendInfo() {
         setBackendStatus("error");
         setLastCheck(new Date());
 
+        // Enviar apenas uma notificação de erro
         if (!localStorage.getItem('backend-error-shown')) {
           toast.error("Erro de conexão", {
-            description: "Não foi possível conectar ao servidor backend. Verifique sua conexão com a internet."
+            description: "Não foi possível conectar ao servidor backend. Verifique sua conexão com a internet ou o status do servidor."
           });
           localStorage.setItem('backend-error-shown', 'true');
+
+          // Resetar os avisos após 5 minutos
+          setTimeout(() => {
+            localStorage.removeItem('backend-error-shown');
+            localStorage.removeItem('backend-warning-shown');
+          }, 5 * 60 * 1000);
         }
       }
     }

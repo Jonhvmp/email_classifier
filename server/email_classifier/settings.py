@@ -230,6 +230,7 @@ COHERE_API_KEY = os.getenv('COHERE_API_KEY', '')
 # Configuração da API do Hugging Face
 HUGGINGFACE_API_TOKEN = os.environ.get("HUGGINGFACE_API_TOKEN", "")
 
+# Configuração de CORS otimizada
 CORS_ORIGIN_FRONT = os.getenv('CORS_ORIGIN_FRONT', 'http://localhost:3000')
 
 # Configurações de CSRF e CORS melhoradas
@@ -238,24 +239,26 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:3000',
     'https://email-classifier-ten.vercel.app',
     'https://*.vercel.app',
-    'https://*.up.railway.app',
-    'https://*.railway.app'
 ]
 
+# Aceitar todas as origens para debugging
+CORS_ALLOW_ALL_ORIGINS = os.getenv('CORS_ALLOW_ALL_ORIGINS', 'True').lower() == 'true'
+
+# Se não está permitindo todas as origens, especificar as permitidas
+if not CORS_ALLOW_ALL_ORIGINS:
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://email-classifier-ten.vercel.app",
+    ]
+
+    # Adicionar origens extras da variável de ambiente
+    if os.getenv('CORS_ORIGIN_WHITELIST'):
+        CORS_ALLOWED_ORIGINS.extend(os.getenv('CORS_ORIGIN_WHITELIST').split(','))
+
+# Configurações adicionais de CORS
 CORS_ALLOW_CREDENTIALS = True
-CORS_ORIGIN_WHITELIST = [
-    CORS_ORIGIN_FRONT,
-    'http://127.0.0.1:3000',
-    'https://email-classifier-ten.vercel.app',
-]
-
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://email-classifier-ten.vercel.app",
-    "https://*.vercel.app",
-]
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 horas
 
 CORS_ALLOW_HEADERS = [
     'accept',
@@ -267,6 +270,8 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'cache-control',
+    'pragma',
 ]
 
 CORS_ALLOW_METHODS = [
@@ -277,6 +282,11 @@ CORS_ALLOW_METHODS = [
     'POST',
     'PUT',
 ]
+
+# Logs para debug
+print(f"[INFO] CORS configurado. ALLOW_ALL_ORIGINS={CORS_ALLOW_ALL_ORIGINS}")
+if not CORS_ALLOW_ALL_ORIGINS and 'CORS_ALLOWED_ORIGINS' in locals():
+    print(f"[INFO] Origens permitidas: {CORS_ALLOWED_ORIGINS}")
 
 # Configurações de segurança para produção
 if not DEBUG:

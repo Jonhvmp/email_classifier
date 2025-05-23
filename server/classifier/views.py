@@ -3,6 +3,8 @@ from django.contrib import messages
 from django.views.generic import ListView, DetailView
 import logging
 from datetime import datetime
+
+from server.email_classifier import settings
 from .models import Email
 from .forms import EmailForm
 from .utils import extract_text_from_file
@@ -155,7 +157,7 @@ def api_status(request):
             "/api/usage/": "Estatísticas de uso da API"
         }
 
-        origin = request.headers.get('origin', 'desconhecida')
+        origin = request.headers.get('origin', request.META.get('HTTP_ORIGIN', 'desconhecida'))
         logger.info(f"API status chamado, origem: {origin}")
 
         # Verificar conexão com banco de dados
@@ -164,25 +166,52 @@ def api_status(request):
             with connection.cursor() as cursor:
                 cursor.execute("SELECT 1")
             db_status = "connected"
+            db_engine = connection.vendor
         except Exception as e:
             db_status = f"error: {str(e)}"
+            db_engine = "unknown"
             logger.error(f"Erro de conexão com banco: {e}")
 
+        # Verificar sistema operacional
+        import platform
+        os_info = f"{platform.system()} {platform.version()}"
+
+        # Verificar status do job queue
+        queue_status = "available"
+        try:
+            from .job_queue import job_queue
+            queue_info = job_queue.get_queue_status()
+            queue_length = queue_info['queue_length']
+            queue_status = f"ok ({queue_length} job(s) na fila)"
+        except Exception as e:
+            queue_status = f"error: {str(e)}"
+            logger.error(f"Erro ao obter status da fila de jobs: {e}")
+
+        # Incluir mais informações relevantes
         response_data = {
             "status": "online",
             "message": "API está funcionando corretamente",
-            "database": db_status,
+            "version": "1.0.6",
+            "timestamp": datetime.now().isoformat(),
+            "database": {
+                "status": db_status,
+                "engine": db_engine
+            },
+            "job_queue": queue_status,
+            "system": os_info,
             "endpoints": endpoints,
-            "csrf_required": False,
-            "version": "1.0.5",
-            "cors_origin": origin
+            "debug_mode": settings.DEBUG,
+            "allowed_hosts": settings.ALLOWED_HOSTS,
+            "cors_origins": settings.CORS_ALLOWED_ORIGINS if hasattr(settings, 'CORS_ALLOWED_ORIGINS') else "all",
+            "request": {
+                "path": request.path,
+                "method": request.method,
+                "origin": origin,
+                "remote_addr": request.META.get('REMOTE_ADDR', 'unknown')
+            }
         }
 
         response = JsonResponse(response_data)
-
-        # Configurar CORS headers explicitamente
-        _add_cors_headers(response, origin)
-
         logger.info("✅ API status response enviada com sucesso")
         return response
 
@@ -190,11 +219,9 @@ def api_status(request):
         logger.error(f"❌ Erro no endpoint api_status: {e}")
         response = JsonResponse({
             "status": "error",
-            "message": f"Erro interno: {str(e)}"
+            "message": f"Erro interno: {str(e)}",
+            "timestamp": datetime.now().isoformat()
         }, status=500)
-
-        # Adicionar CORS mesmo em erro
-        _add_cors_headers(response, request.headers.get('origin'))
         return response
 
 def _add_cors_headers(response, origin=None):
@@ -221,35 +248,66 @@ def api_usage(request):
     API para obter estatísticas de uso da API.
     """
     try:
+        # Log da origem da requisição
+        origin = request.headers.get('origin', request.META.get('HTTP_ORIGIN', 'desconhecida'))
+        logger.info(f"API usage chamado, origem: {origin}")
+
         # Obter estatísticas dos rate limiters
-        gemini_stats = gemini_limiter.get_stats()
-        queue_stats = job_queue.get_queue_status()
+        try:
+            from .ai_service import gemini_limiter
+            gemini_stats = gemini_limiter.get_stats()
+        except Exception as e:
+            logger.error(f"Erro ao obter estatísticas do Gemini: {e}")
+            gemini_stats = {
+                "minute_usage": 0,
+                "minute_limit": 0,
+                "minute_percent": 0,
+                "day_usage": 0,
+                "day_limit": 0,
+                "day_percent": 0,
+                "total_today": 0,
+                "error": str(e)
+            }
+
+        # Obter estatísticas da fila de jobs
+        try:
+            from .job_queue import job_queue
+            queue_stats = job_queue.get_queue_status()
+        except Exception as e:
+            logger.error(f"Erro ao obter estatísticas da fila: {e}")
+            queue_stats = {
+                "queue_length": 0,
+                "active_job": None,
+                "estimated_wait": 0,
+                "queued_jobs": [],
+                "processing_count": 0,
+                "error": str(e)
+            }
 
         data = {
-            "gemini_api": {
-                "minute_usage": gemini_stats["minute_usage"],
-                "minute_limit": gemini_stats["minute_limit"],
-                "minute_percent": gemini_stats["minute_percent"],
-                "day_usage": gemini_stats["day_usage"],
-                "day_limit": gemini_stats["day_limit"],
-                "day_percent": gemini_stats["day_percent"],
-                "total_today": gemini_stats["total_today"]
-            },
+            "gemini_api": gemini_stats,
             "job_queue": queue_stats,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "server_version": "1.0.6",
+            "status": "operational",
+            "request": {
+                "path": request.path,
+                "method": request.method,
+                "origin": origin
+            }
         }
 
         response = JsonResponse(data)
-
-        # Adicionar cabeçalhos CORS
-        _add_cors_headers(response, request.headers.get('origin'))
-
+        logger.info("✅ API usage response enviada com sucesso")
         return response
 
     except Exception as e:
         logger.error(f"Erro ao obter estatísticas de uso: {str(e)}")
-        response = JsonResponse({"error": str(e)}, status=500)
-        _add_cors_headers(response, request.headers.get('origin'))
+        response = JsonResponse({
+            "status": "error",
+            "message": str(e),
+            "timestamp": datetime.now().isoformat()
+        }, status=500)
         return response
 
 @csrf_exempt
