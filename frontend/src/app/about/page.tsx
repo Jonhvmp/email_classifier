@@ -28,7 +28,7 @@ export default function AboutPage() {
           </p>
           <p className="text-base text-muted-foreground">
             A classificação é feita através de uma combinação de heurísticas e modelos de linguagem avançados
-            da Cohere e Hugging Face para analisar o contexto completo de cada mensagem.
+            da Gemini para analisar o contexto completo de cada mensagem.
           </p>
         </section>
 
@@ -38,7 +38,7 @@ export default function AboutPage() {
             <li>Backend: Django (Python)</li>
             <li>Frontend: Next.js (React)</li>
             <li>Estilização: TailwindCSS e shadcn/ui</li>
-            <li>IA: Cohere API e Hugging Face</li>
+            <li>IA: Gemini</li>
           </ul>
         </section>
       </div>

@@ -2,12 +2,14 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.views.generic import ListView, DetailView
 import logging
+from datetime import datetime
 from .models import Email
 from .forms import EmailForm
 from .utils import extract_text_from_file
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from .ai_service import process_email
+from .ai_service import process_email, queue_email_processing, queue_complete_email_processing, gemini_limiter, job_queue
+from .job_queue import JobStatus  # Adicionando import faltante
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +150,8 @@ def api_status(request):
         "/api/status/": "Status da API (este endpoint)",
         "/api/submit-email/": "Endpoint para submissão de emails (POST)",
         "/api/emails/": "Lista de todos os emails em formato JSON",
-        "/api/emails/1/": "Detalhes de um email específico em JSON (substitua 1 pelo ID)"
+        "/api/emails/1/": "Detalhes de um email específico em JSON (substitua 1 pelo ID)",
+        "/api/usage/": "Estatísticas de uso da API"
     }
 
     logger.info(f"API status chamado, origem: {request.headers.get('origin', 'desconhecida')}")
@@ -166,10 +169,45 @@ def api_status(request):
     response["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With, Accept"
     return response
 
+def api_usage(request):
+    """
+    API para obter estatísticas de uso da API.
+    """
+    try:
+        # Obter estatísticas dos rate limiters
+        gemini_stats = gemini_limiter.get_stats()
+        queue_stats = job_queue.get_queue_status()
+
+        data = {
+            "gemini_api": {
+                "minute_usage": gemini_stats["minute_usage"],
+                "minute_limit": gemini_stats["minute_limit"],
+                "minute_percent": gemini_stats["minute_percent"],
+                "day_usage": gemini_stats["day_usage"],
+                "day_limit": gemini_stats["day_limit"],
+                "day_percent": gemini_stats["day_percent"],
+                "total_today": gemini_stats["total_today"]
+            },
+            "job_queue": queue_stats,
+            "timestamp": datetime.now().isoformat()
+        }
+
+        response = JsonResponse(data)
+        # Adicionar cabeçalhos CORS
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type"
+        return response
+
+    except Exception as e:
+        logger.error(f"Erro ao obter estatísticas de uso: {str(e)}")
+        return JsonResponse({"error": str(e)}, status=500)
+
 @csrf_exempt
 def api_submit_email(request):
     """
     Endpoint API para submissão de emails pelo frontend sem verificação CSRF.
+    Usa fila para processamento assíncrono.
     """
     if request.method != 'POST':
         return JsonResponse({'error': 'Método não permitido'}, status=405)
@@ -186,7 +224,8 @@ def api_submit_email(request):
                 'errors': form.errors.as_json()
             }, status=400)
 
-        return _process_valid_form(form, is_api=True)
+        # Usar versão assíncrona
+        return _process_valid_form_async(form, is_api=True)
 
     except Exception as e:
         logger.error(f"ERRO geral: {str(e)}")
@@ -195,9 +234,9 @@ def api_submit_email(request):
             'message': f'Erro interno: {str(e)}'
         }, status=500)
 
-def _process_valid_form(form, is_api=False):
+def _process_valid_form_async(form, is_api=False):
     """
-    Processa um formulário válido, para uso tanto na view normal quanto na API.
+    Processa um formulário válido de forma assíncrona usando a fila.
     """
     email = form.save(commit=False)
     input_method = form.cleaned_data.get('input_method')
@@ -238,46 +277,37 @@ def _process_valid_form(form, is_api=False):
                 }, status=400)
             raise e
 
-    # Processar o email usando o serviço AI
-    try:
-        logger.info(f"Processando email - Assunto: {email.subject[:30]}...")
+    # Preparar dados do email para processamento
+    email_data = {
+        'subject': email.subject,
+        'content': email.content,
+        'sender': email.sender
+    }
 
-        email_data = {
-            'subject': email.subject,
-            'content': email.content,
-            'sender': email.sender
-        }
+    # Salvar email com status temporário
+    email.category = "pending"  # Status temporário até que o job seja concluído
+    email.confidence_score = 0.0
+    email.suggested_response = "Processando..."
+    email.save()
 
-        result = process_email(email_data)
+    # Enfileirar para processamento completo com referência ao email
+    job_id = queue_complete_email_processing(email_data, email.pk)
 
-        email.category = result['category']
-        email.confidence_score = result['confidence_score']
-        email.suggested_response = result['suggested_response']
+    # Retornar resposta ao cliente
+    if is_api:
+        queue_status = job_queue.get_queue_status()
 
-        logger.info(f"Email processado - Categoria: {email.category}, Confiança: {email.confidence_score:.2f}%")
+        return JsonResponse({
+            'status': 'queued',
+            'message': 'Email submetido para processamento',
+            'id': email.pk,
+            'job_id': job_id,
+            'queue_position': queue_status['queue_length'],
+            'estimated_wait': queue_status['estimated_wait'],
+            'queue_status': queue_status
+        })
 
-        email.save()
-        logger.info(f"Email salvo com ID: {email.pk}")
-
-        if is_api:
-            return JsonResponse({
-                'status': 'success',
-                'id': email.pk,
-                'subject': email.subject,
-                'category': email.category,
-                'confidence_score': email.confidence_score
-            })
-
-        return email
-
-    except Exception as e:
-        logger.error(f"ERRO no processamento: {str(e)}")
-        if is_api:
-            return JsonResponse({
-                'status': 'error',
-                'message': f"Erro ao processar o email: {str(e)}"
-            }, status=500)
-        raise e
+    return email
 
 def api_email_detail(request, pk):
     """
@@ -338,4 +368,47 @@ def api_emails_list(request):
 
     except Exception as e:
         logger.error(f"Erro ao listar emails: {str(e)}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+@csrf_exempt
+def api_job_status(request, job_id):
+    """
+    API para verificar o status de um job específico.
+    """
+    try:
+        job = job_queue.get_job(job_id)
+
+        if not job:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Job não encontrado: {job_id}'
+            }, status=404)
+
+        job_data = job.to_dict()
+
+        # Adicionar informações do email se for um job de processamento completo
+        if job.job_type == "process_email_complete" and job.status == JobStatus.COMPLETED:
+            email_id = job.data.get('email_id')
+            if email_id:
+                from .models import Email
+                try:
+                    email = Email.objects.get(pk=email_id)
+                    job_data['email'] = {
+                        'id': email.id,
+                        'subject': email.subject,
+                        'category': email.category,
+                        'confidence_score': email.confidence_score,
+                        'is_processed': email.category != 'pending'
+                    }
+                except Email.DoesNotExist:
+                    job_data['email'] = {'error': 'Email não encontrado'}
+
+        response = JsonResponse(job_data)
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type"
+        return response
+
+    except Exception as e:
+        logger.error(f"Erro ao obter status do job: {str(e)}")
         return JsonResponse({"error": str(e)}, status=500)
