@@ -1,4 +1,4 @@
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 import logging
 import os
 
@@ -19,19 +19,20 @@ class CorsMiddleware:
         if os.environ.get('CORS_ORIGIN_WHITELIST'):
             extra_origins = os.environ['CORS_ORIGIN_WHITELIST'].split(',')
             self.allowed_origins.extend(extra_origins)
-            logger.info(f"Adicionadas origens CORS da variável de ambiente: {extra_origins}")
+            logger.info(f"Adicionadas origens CORS da variavel de ambiente: {extra_origins}")
 
         # Remover duplicatas
         self.allowed_origins = list(set(self.allowed_origins))
         logger.info(f"CORS middleware iniciado. Origens permitidas: {self.allowed_origins}")
 
     def __call__(self, request):
-        # Log da requisição para debug
+        # Log detalhado da requisição
         origin = request.META.get('HTTP_ORIGIN', 'N/A')
         method = request.method
         path = request.path
+        user_agent = request.META.get('HTTP_USER_AGENT', 'N/A')[:50]
 
-        logger.info(f"Requisição recebida: {method} {path} Origin: {origin}")
+        logger.info(f"CORS: {method} {path} | Origin: {origin} | UA: {user_agent}")
 
         # Permitir todas as origens se configurado
         allow_all = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'False').lower() in ('true', '1', 't')
@@ -44,38 +45,57 @@ class CorsMiddleware:
             origin == 'null'  # Para testes locais
         )
 
-        # Definir origem para cabeçalhos CORS
-        cors_origin = origin if origin_allowed else '*'
+        logger.info(f"CORS: Origin permitida: {origin_allowed} (allow_all: {allow_all})")
 
+        # Tratar requisições OPTIONS (preflight)
         if method == "OPTIONS":
-            logger.info(f"Requisição OPTIONS de origem: {origin}")
-            response = JsonResponse({})
-            self._add_cors_headers(response, cors_origin)
+            logger.info(f"CORS: Tratando requisicao OPTIONS/preflight de origem: {origin}")
+
+            response = HttpResponse()
+            response.status_code = 200
+
+            # Definir origem para cabeçalhos CORS
+            if origin_allowed:
+                response["Access-Control-Allow-Origin"] = origin if origin != 'N/A' else '*'
+            else:
+                response["Access-Control-Allow-Origin"] = '*'
+
+            response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            response["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With, Accept, Authorization, X-CSRFToken, Origin, Cache-Control, Pragma"
+            response["Access-Control-Allow-Credentials"] = "true"
+            response["Access-Control-Max-Age"] = "86400"
+
+            # Headers adicionais para debug
+            response["X-CORS-Debug"] = f"Origin: {origin}, Allowed: {origin_allowed}"
+
+            logger.info(f"CORS: Resposta OPTIONS enviada com headers CORS")
             return response
 
         # Processar requisição normal
         try:
             response = self.get_response(request)
-            logger.info(f"Response status: {response.status_code} para {method} {path}")
+            logger.info(f"CORS: Response status: {response.status_code} para {method} {path}")
         except Exception as e:
-            logger.error(f"Erro ao processar requisição: {e}")
+            logger.error(f"CORS: Erro ao processar requisicao: {e}")
             response = JsonResponse({
                 'status': 'error',
                 'message': f'Erro interno do servidor: {str(e)}'
             }, status=500)
 
         # Configurar cabeçalhos CORS para todas as respostas
-        self._add_cors_headers(response, cors_origin)
-        return response
+        if origin_allowed:
+            response["Access-Control-Allow-Origin"] = origin if origin != 'N/A' else '*'
+        else:
+            response["Access-Control-Allow-Origin"] = '*'
 
-    def _add_cors_headers(self, response, origin):
-        """Adiciona os cabeçalhos CORS adequados à resposta"""
-        response["Access-Control-Allow-Origin"] = origin
         response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With, Accept, Authorization, X-CSRFToken, Origin"
+        response["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With, Accept, Authorization, X-CSRFToken, Origin, Cache-Control, Pragma"
         response["Access-Control-Allow-Credentials"] = "true"
-        response["Access-Control-Max-Age"] = "86400"  # 24 horas
+        response["Access-Control-Max-Age"] = "86400"
 
-        # Adicionar outros cabeçalhos de segurança padrão
+        # Headers adicionais de segurança
         response["X-Content-Type-Options"] = "nosniff"
+        response["X-CORS-Debug"] = f"Origin: {origin}, Method: {method}, Status: {response.status_code}"
+
+        logger.info(f"CORS: Headers adicionados à resposta")
         return response

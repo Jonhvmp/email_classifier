@@ -150,7 +150,17 @@ def api_status(request):
         # Log importante para debug
         origin = request.headers.get('origin', request.META.get('HTTP_ORIGIN', 'desconhecida'))
         method = request.method
-        logger.info(f"🔥 API status chamado: {method} {request.path} - Origem: {origin}")
+        logger.info(f"API status chamado: {method} {request.path} - Origem: {origin}")
+
+        # Tratar OPTIONS explicitamente se necessário
+        if method == "OPTIONS":
+            logger.info("API status: Tratando requisicao OPTIONS")
+            response = JsonResponse({'status': 'options_ok'})
+            response["Access-Control-Allow-Origin"] = "*"
+            response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            response["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With, Accept, Authorization, X-CSRFToken, Origin"
+            response["Access-Control-Allow-Credentials"] = "true"
+            return response
 
         endpoints = {
             "/": "Página inicial com formulário",
@@ -231,12 +241,13 @@ def api_status(request):
         # Criar resposta JSON
         response = JsonResponse(response_data)
 
-        # Adicionar headers CORS explicitamente
+        # Garantir headers CORS explicitamente
         response["Access-Control-Allow-Origin"] = "*"
         response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         response["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With, Accept, Authorization, X-CSRFToken, Origin"
         response["Access-Control-Allow-Credentials"] = "true"
         response["Access-Control-Max-Age"] = "86400"
+        response["X-API-Version"] = "1.0.7"
 
         logger.info("API status response enviada com sucesso")
         return response
@@ -255,10 +266,11 @@ def api_status(request):
             "traceback": error_trace.split('\n')[-10:]  # Últimas 10 linhas do traceback
         }, status=500)
 
-        # Adicionar headers CORS mesmo em caso de erro
+        # Garantir headers CORS mesmo em caso de erro
         response["Access-Control-Allow-Origin"] = "*"
         response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         response["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With, Accept, Authorization, X-CSRFToken, Origin"
+        response["Access-Control-Allow-Credentials"] = "true"
 
         return response
 
