@@ -1,1 +1,1 @@
-web: cd server && python manage.py migrate && gunicorn email_classifier.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+web: cd server && pip install --user -r requirements.txt && python manage.py migrate && python manage.py collectstatic --noinput && gunicorn email_classifier.wsgi:application --bind 0.0.0.0:$PORT --workers 2
