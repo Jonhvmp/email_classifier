@@ -10,3 +10,4 @@ cmd = "chmod +x start.sh && ./start.sh"
 
 [variables]
 PYTHONPATH = "./server"
+DATABASE_CONNECTION_POOLING = "true"

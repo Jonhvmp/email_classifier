@@ -21,7 +21,6 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
@@ -35,12 +34,13 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = []
 if 'RAILWAY_STATIC_URL' in os.environ:
     ALLOWED_HOSTS = ['*']  # Railway injeta hosts automaticamente
+elif 'DATABASE_URL' in os.environ:
+    # Estamos no Railway mesmo sem RAILWAY_STATIC_URL
+    ALLOWED_HOSTS = ['*']
 else:
     ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
-
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -64,7 +64,6 @@ MIDDLEWARE = [
 ]
 
 APPEND_SLASH = True
-
 TRAILING_SLASH = True
 
 ROOT_URLCONF = 'email_classifier.urls'
@@ -87,10 +86,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'email_classifier.wsgi.application'
 
-
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-
 # Database configuration for Railway
 if 'DATABASE_URL' in os.environ:
     DATABASES = {
@@ -99,6 +94,10 @@ if 'DATABASE_URL' in os.environ:
             conn_max_age=600,
             conn_health_checks=True,
         )
+    }
+    # Configurações específicas para PostgreSQL no Railway
+    DATABASES['default']['OPTIONS'] = {
+        'sslmode': 'require',
     }
 else:
     # Fallback para desenvolvimento local
@@ -109,10 +108,8 @@ else:
         }
     }
 
-
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -128,22 +125,15 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
-
 LANGUAGE_CODE = 'pt-br'
-
 TIME_ZONE = 'America/Sao_Paulo'
-
 USE_I18N = True
-
 USE_TZ = True
-
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
-
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
@@ -188,5 +178,4 @@ if not DEBUG:
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
