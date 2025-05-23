@@ -232,10 +232,47 @@ HUGGINGFACE_API_TOKEN = os.environ.get("HUGGINGFACE_API_TOKEN", "")
 
 CORS_ORIGIN_FRONT = os.getenv('CORS_ORIGIN_FRONT', 'http://localhost:3000')
 
-# Configurações de CSRF
-CSRF_TRUSTED_ORIGINS = [CORS_ORIGIN_FRONT, 'http://127.0.0.1:3000']
+# Configurações de CSRF e CORS melhoradas
+CSRF_TRUSTED_ORIGINS = [
+    CORS_ORIGIN_FRONT,
+    "http://localhost:3000",
+    'https://email-classifier-ten.vercel.app',
+]
+
 CORS_ALLOW_CREDENTIALS = True
-CORS_ORIGIN_WHITELIST = [CORS_ORIGIN_FRONT, 'http://127.0.0.1:3000']
+CORS_ORIGIN_WHITELIST = [
+    CORS_ORIGIN_FRONT,
+    "http://localhost:3000",
+    'https://email-classifier-ten.vercel.app',
+]
+
+CORS_ALLOW_ALL_ORIGINS = False  # Temporariamente para debug
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://email-classifier-ten.vercel.app",
+]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
 
 # Configurações de segurança para produção
 if not DEBUG:

@@ -155,7 +155,8 @@ def api_status(request):
             "/api/usage/": "Estatísticas de uso da API"
         }
 
-        logger.info(f"API status chamado, origem: {request.headers.get('origin', 'desconhecida')}")
+        origin = request.headers.get('origin', 'desconhecida')
+        logger.info(f"API status chamado, origem: {origin}")
 
         # Verificar conexão com banco de dados
         from django.db import connection
@@ -173,24 +174,47 @@ def api_status(request):
             "database": db_status,
             "endpoints": endpoints,
             "csrf_required": False,
-            "version": "1.0.4"
+            "version": "1.0.5",
+            "cors_origin": origin
         }
 
         response = JsonResponse(response_data)
 
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, OPTIONS, POST"
-        response["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With, Accept"
+        # Configurar CORS headers explicitamente
+        _add_cors_headers(response, origin)
 
         logger.info("✅ API status response enviada com sucesso")
         return response
 
     except Exception as e:
         logger.error(f"❌ Erro no endpoint api_status: {e}")
-        return JsonResponse({
+        response = JsonResponse({
             "status": "error",
             "message": f"Erro interno: {str(e)}"
         }, status=500)
+
+        # Adicionar CORS mesmo em erro
+        _add_cors_headers(response, request.headers.get('origin'))
+        return response
+
+def _add_cors_headers(response, origin=None):
+    """Adiciona cabeçalhos CORS a uma resposta"""
+    # Lista de origens permitidas
+    allowed_origins = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'https://email-classifier-ten.vercel.app',
+    ]
+
+    # Verificar se a origem é permitida
+    if origin and (origin in allowed_origins or '.vercel.app' in origin):
+        response["Access-Control-Allow-Origin"] = origin
+    else:
+        response["Access-Control-Allow-Origin"] = "*"
+
+    response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    response["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With, Accept, Authorization, X-CSRFToken"
+    response["Access-Control-Allow-Credentials"] = "true"
 
 def api_usage(request):
     """
@@ -216,15 +240,17 @@ def api_usage(request):
         }
 
         response = JsonResponse(data)
+
         # Adicionar cabeçalhos CORS
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type"
+        _add_cors_headers(response, request.headers.get('origin'))
+
         return response
 
     except Exception as e:
         logger.error(f"Erro ao obter estatísticas de uso: {str(e)}")
-        return JsonResponse({"error": str(e)}, status=500)
+        response = JsonResponse({"error": str(e)}, status=500)
+        _add_cors_headers(response, request.headers.get('origin'))
+        return response
 
 @csrf_exempt
 def api_submit_email(request):
@@ -354,14 +380,14 @@ def api_email_detail(request, pk):
         }
 
         response = JsonResponse(data)
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type"
+        _add_cors_headers(response, request.headers.get('origin'))
         return response
 
     except Exception as e:
         logger.error(f"Erro ao obter detalhes do email: {str(e)}")
-        return JsonResponse({"error": str(e)}, status=500)
+        response = JsonResponse({"error": str(e)}, status=500)
+        _add_cors_headers(response, request.headers.get('origin'))
+        return response
 
 def api_emails_list(request):
     """
@@ -384,14 +410,14 @@ def api_emails_list(request):
             })
 
         response = JsonResponse(data, safe=False)
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type"
+        _add_cors_headers(response, request.headers.get('origin'))
         return response
 
     except Exception as e:
         logger.error(f"Erro ao listar emails: {str(e)}")
-        return JsonResponse({"error": str(e)}, status=500)
+        response = JsonResponse({"error": str(e)}, status=500)
+        _add_cors_headers(response, request.headers.get('origin'))
+        return response
 
 @csrf_exempt
 def api_job_status(request, job_id):
@@ -402,10 +428,12 @@ def api_job_status(request, job_id):
         job = job_queue.get_job(job_id)
 
         if not job:
-            return JsonResponse({
+            response = JsonResponse({
                 'status': 'error',
                 'message': f'Job não encontrado: {job_id}'
             }, status=404)
+            _add_cors_headers(response, request.headers.get('origin'))
+            return response
 
         job_data = job.to_dict()
 
@@ -427,11 +455,11 @@ def api_job_status(request, job_id):
                     job_data['email'] = {'error': 'Email não encontrado'}
 
         response = JsonResponse(job_data)
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type"
+        _add_cors_headers(response, request.headers.get('origin'))
         return response
 
     except Exception as e:
         logger.error(f"Erro ao obter status do job: {str(e)}")
-        return JsonResponse({"error": str(e)}, status=500)
+        response = JsonResponse({"error": str(e)}, status=500)
+        _add_cors_headers(response, request.headers.get('origin'))
+        return response
