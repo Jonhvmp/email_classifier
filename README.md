@@ -103,4 +103,4 @@ Para documentação detalhada: [Acesse a documentação](https://jonhvmp.github.
 
 ---
 
-**Case desenvolvido para vaga de Engenheiro de Software Jr**
+**Case desenvolvido para vaga de Engenheiro de Software Jr | Jonh Alex**
