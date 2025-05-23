@@ -10,3 +10,5 @@ cmd = "chmod +x start.sh && ./start.sh"
 
 [variables]
 PYTHONPATH = "./server"
+# Garantir que o Railway reconheça que é uma aplicação Django
+DJANGO_SETTINGS_MODULE = "email_classifier.settings"

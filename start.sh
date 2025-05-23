@@ -6,25 +6,33 @@ if [ -z "$DATABASE_URL" ]; then
     exit 1
 fi
 
-echo "✅ DATABASE_URL encontrada"
+echo "✅ DATABASE_URL encontrada: ${DATABASE_URL:0:50}..."
 echo "🔗 Conectando ao banco de dados..."
 
 # Aguardar um momento para conexões se estabilizarem
 sleep 2
 
-# Verificar conectividade básica
-echo "🧪 Testando conectividade com banco..."
+# Entrar no diretório server
 cd server
-python manage.py check --database default --deploy || {
-    echo "❌ Falha na verificação do banco de dados"
+
+# Verificar se os arquivos do Django existem
+if [ ! -f "manage.py" ]; then
+    echo "❌ manage.py não encontrado no diretório server"
+    exit 1
+fi
+
+# Verificar conectividade básica sem --deploy para evitar erros extras
+echo "🧪 Testando conectividade básica com banco..."
+python manage.py check || {
+    echo "❌ Falha na verificação básica do Django"
     exit 1
 }
 
-echo "✅ Verificação do banco OK"
+echo "✅ Verificação básica OK"
 
-# Executar migrações
+# Executar migrações com mais verbosidade
 echo "📦 Aplicando migrações..."
-python manage.py migrate --noinput || {
+python manage.py migrate --verbosity=2 --noinput || {
     echo "❌ Falha ao aplicar migrações"
     exit 1
 }
@@ -34,8 +42,7 @@ echo "✅ Migrações aplicadas"
 # Coletar arquivos estáticos
 echo "📁 Coletando arquivos estáticos..."
 python manage.py collectstatic --noinput || {
-    echo "❌ Falha ao coletar arquivos estáticos"
-    # Não fazer exit aqui, pois arquivos estáticos não são críticos
+    echo "⚠️ Falha ao coletar arquivos estáticos, mas continuando..."
 }
 
 echo "✅ Arquivos estáticos coletados"

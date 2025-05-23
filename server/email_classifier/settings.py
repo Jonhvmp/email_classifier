@@ -14,6 +14,10 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 import dj_database_url
+import logging
+
+# Configurar logger
+logger = logging.getLogger(__name__)
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -87,34 +91,33 @@ TEMPLATES = [
 WSGI_APPLICATION = 'email_classifier.wsgi.application'
 
 # Database configuration for Railway
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
-# Verificar se estamos no Railway (produção)
+# Verificar se estamos no Railway (produção) PRIMEIRO
 if 'DATABASE_URL' in os.environ:
+    print(f"[INFO] DATABASE_URL encontrada: {os.environ['DATABASE_URL'][:50]}...")
+
     # Parse da URL do banco de dados fornecida pelo Railway
-    db_config = dj_database_url.parse(
-        os.environ.get('DATABASE_URL'),
-        conn_max_age=600,
-        conn_health_checks=True,
-    )
+    DATABASES = {
+        'default': dj_database_url.parse(
+            os.environ.get('DATABASE_URL'),
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
 
     # Configurações específicas para PostgreSQL no Railway
-    db_config['OPTIONS'] = {
+    DATABASES['default']['OPTIONS'] = {
         'sslmode': 'require',
     }
 
-    DATABASES = {
-        'default': db_config
-    }
-
-    logger.info(f"Usando PostgreSQL: {db_config['HOST']}:{db_config['PORT']}")
+    print(f"[INFO] Usando PostgreSQL: {DATABASES['default']['HOST']}:{DATABASES['default']['PORT']}")
 else:
-    logger.info("Usando SQLite para desenvolvimento local")
+    print("[INFO] DATABASE_URL não encontrada, usando SQLite para desenvolvimento local")
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
