@@ -6,7 +6,7 @@ dependsOn = ["setup"]
 cmds = ["cd server && pip install --break-system-packages -r requirements.txt"]
 
 [start]
-cmd = "cd server && python manage.py migrate && python manage.py collectstatic --noinput && python manage.py runserver 0.0.0.0:$PORT"
+cmd = "chmod +x start.sh && ./start.sh"
 
 [variables]
 PYTHONPATH = "./server"
