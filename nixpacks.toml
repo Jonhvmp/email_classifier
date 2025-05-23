@@ -1,0 +1,17 @@
+[phases.build]
+dependsOn = ["install"]
+cmds = ["cd server && python manage.py collectstatic --noinput"]
+
+[phases.install]
+dependsOn = ["setup"]
+cmds = ["cd server && pip install -r requirements.txt"]
+
+[phases.setup]
+nixPkgs = ["python311", "python311Packages.pip"]
+aptPkgs = ["postgresql-client"]
+
+[start]
+cmd = "cd server && python manage.py migrate && gunicorn email_classifier.wsgi:application --bind 0.0.0.0:$PORT"
+
+[variables]
+PYTHONPATH = "./server"

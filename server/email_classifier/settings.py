@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+import dj_database_url
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -47,6 +48,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Adicionar após SecurityMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'classifier.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -84,12 +86,19 @@ WSGI_APPLICATION = 'email_classifier.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Database configuration for Railway
+if 'DATABASE_URL' in os.environ:
+    DATABASES = {
+        'default': dj_database_url.parse(os.environ.get('DATABASE_URL'))
     }
-}
+else:
+    # Fallback para desenvolvimento local
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -151,6 +160,17 @@ CORS_ORIGIN_FRONT = os.getenv('CORS_ORIGIN_FRONT', 'http://localhost:3000')
 CSRF_TRUSTED_ORIGINS = [CORS_ORIGIN_FRONT, 'http://127.0.0.1:3000']
 CORS_ALLOW_CREDENTIALS = True
 CORS_ORIGIN_WHITELIST = [CORS_ORIGIN_FRONT, 'http://127.0.0.1:3000']
+
+# Configurações de segurança para produção
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

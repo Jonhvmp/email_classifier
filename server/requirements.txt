@@ -16,3 +16,5 @@ google-generativeai>=0.8.5
 mkdocs>=1.5.0
 mkdocs-material>=9.4.0
 mkdocs-awesome-pages-plugin>=2.9.0
+dj-database-url>=1.0.0
+psycopg2-binary>=2.9.0
