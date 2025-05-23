@@ -235,22 +235,26 @@ CORS_ORIGIN_FRONT = os.getenv('CORS_ORIGIN_FRONT', 'http://localhost:3000')
 # Configurações de CSRF e CORS melhoradas
 CSRF_TRUSTED_ORIGINS = [
     CORS_ORIGIN_FRONT,
-    "http://localhost:3000",
+    'http://127.0.0.1:3000',
     'https://email-classifier-ten.vercel.app',
+    'https://*.vercel.app',
+    'https://*.up.railway.app',
+    'https://*.railway.app'
 ]
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ORIGIN_WHITELIST = [
     CORS_ORIGIN_FRONT,
-    "http://localhost:3000",
+    'http://127.0.0.1:3000',
     'https://email-classifier-ten.vercel.app',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = False  # Temporariamente para debug
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://email-classifier-ten.vercel.app",
+    "https://*.vercel.app",
 ]
 
 CORS_ALLOW_HEADERS = [
