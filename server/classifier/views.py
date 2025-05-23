@@ -2,8 +2,11 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.views.generic import ListView, DetailView
 import logging
+import sys
+import os
 from datetime import datetime
-from django.conf import settings  # Importação correta para o Django
+from django.conf import settings
+import django
 from .models import Email
 from .forms import EmailForm
 from .utils import extract_text_from_file
@@ -144,6 +147,11 @@ def api_status(request):
     View para verificar o status da API.
     """
     try:
+        # Log importante para debug
+        origin = request.headers.get('origin', request.META.get('HTTP_ORIGIN', 'desconhecida'))
+        method = request.method
+        logger.info(f"🔥 API status chamado: {method} {request.path} - Origem: {origin}")
+
         endpoints = {
             "/": "Página inicial com formulário",
             "/emails/": "Lista de emails classificados",
@@ -156,16 +164,15 @@ def api_status(request):
             "/api/usage/": "Estatísticas de uso da API"
         }
 
-        origin = request.headers.get('origin', request.META.get('HTTP_ORIGIN', 'desconhecida'))
-        logger.info(f"API status chamado, origem: {origin}")
-
         # Verificar conexão com banco de dados
         from django.db import connection
         try:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT 1")
+                cursor.fetchone()
             db_status = "connected"
             db_engine = connection.vendor
+            logger.info("Conexão com banco de dados OK")
         except Exception as e:
             db_status = f"error: {str(e)}"
             db_engine = "unknown"
@@ -182,16 +189,26 @@ def api_status(request):
             queue_info = job_queue.get_queue_status()
             queue_length = queue_info['queue_length']
             queue_status = f"ok ({queue_length} job(s) na fila)"
+            logger.info(f"Job queue OK: {queue_length} jobs")
         except Exception as e:
             queue_status = f"error: {str(e)}"
             logger.error(f"Erro ao obter status da fila de jobs: {e}")
 
-        # Incluir mais informações relevantes
+        # Preparar dados de resposta
         response_data = {
             "status": "online",
             "message": "API está funcionando corretamente",
-            "version": "1.0.6",
+            "version": "1.0.7",
             "timestamp": datetime.now().isoformat(),
+            "server_info": {
+                "python_version": sys.version,
+                "django_version": django.get_version(),
+                "environment": os.environ.get('RAILWAY_ENVIRONMENT', 'local'),
+                "port": os.environ.get('PORT', '8000'),
+                "workers": os.environ.get('WEB_CONCURRENCY', '1'),
+                "working_directory": os.getcwd(),
+                "python_path": sys.path[:3]  # Primeiros 3 paths para debug
+            },
             "database": {
                 "status": db_status,
                 "engine": db_engine
@@ -201,26 +218,48 @@ def api_status(request):
             "endpoints": endpoints,
             "debug_mode": settings.DEBUG,
             "allowed_hosts": settings.ALLOWED_HOSTS,
-            "cors_origins": settings.CORS_ALLOWED_ORIGINS if hasattr(settings, 'CORS_ALLOWED_ORIGINS') else "all",
+            "cors_origins": getattr(settings, 'CORS_ALLOWED_ORIGINS', "all"),
             "request": {
                 "path": request.path,
                 "method": request.method,
                 "origin": origin,
-                "remote_addr": request.META.get('REMOTE_ADDR', 'unknown')
+                "remote_addr": request.META.get('REMOTE_ADDR', 'unknown'),
+                "user_agent": request.META.get('HTTP_USER_AGENT', 'unknown')[:100]
             }
         }
 
+        # Criar resposta JSON
         response = JsonResponse(response_data)
-        logger.info("✅ API status response enviada com sucesso")
+
+        # Adicionar headers CORS explicitamente
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With, Accept, Authorization, X-CSRFToken, Origin"
+        response["Access-Control-Allow-Credentials"] = "true"
+        response["Access-Control-Max-Age"] = "86400"
+
+        logger.info("API status response enviada com sucesso")
         return response
 
     except Exception as e:
-        logger.error(f"❌ Erro no endpoint api_status: {e}")
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"Erro no endpoint api_status: {e}")
+        logger.error(f"Traceback completo: {error_trace}")
+
         response = JsonResponse({
             "status": "error",
             "message": f"Erro interno: {str(e)}",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "error_type": type(e).__name__,
+            "traceback": error_trace.split('\n')[-10:]  # Últimas 10 linhas do traceback
         }, status=500)
+
+        # Adicionar headers CORS mesmo em caso de erro
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With, Accept, Authorization, X-CSRFToken, Origin"
+
         return response
 
 def _add_cors_headers(response, origin=None):

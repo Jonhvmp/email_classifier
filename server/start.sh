@@ -3,14 +3,63 @@ set -e
 
 echo "Iniciando aplicação..."
 
-# Verificar variáveis de ambiente críticas
-echo "Verificando variáveis de ambiente..."
-if [ -z "$DATABASE_URL" ] && [ -z "$PGHOST" ]; then
-    echo "DATABASE_URL ou PGHOST não definidos. Usando SQLite."
+# Verificar se estamos no Railway
+if [ -n "$RAILWAY_ENVIRONMENT" ]; then
+    echo "Ambiente Railway detectado"
+    export PORT=${PORT:-8000}
+else
+    echo "Ambiente local detectado"
+    export PORT=8000
 fi
 
-# Esperar o banco de dados ficar disponível
-echo "Aguardando banco de dados..."
+# Verificar variáveis de ambiente críticas
+echo "Verificando variáveis de ambiente..."
+echo "PORT: ${PORT}"
+echo "DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-email_classifier.settings}"
+echo "PWD: $(pwd)"
+echo "Arquivos no diretório: $(ls -la)"
+
+# Configurar Django
+export DJANGO_SETTINGS_MODULE=email_classifier.settings
+export PYTHONPATH=/app:$PYTHONPATH
+
+# Verificar se o Python consegue encontrar o Django
+echo "Testando importação do Django..."
+python3 -c "
+import sys
+print(f'Python version: {sys.version}')
+print(f'Python path: {sys.path[:5]}')
+
+try:
+    import django
+    print(f'Django importado: versão {django.get_version()}')
+except ImportError as e:
+    print(f'Erro ao importar Django: {e}')
+    sys.exit(1)
+"
+
+# Verificar se o manage.py funciona
+echo "Testando manage.py..."
+python3 manage.py --version
+
+# Verificar se o Django consegue inicializar
+echo "Testando configuração do Django..."
+python3 -c "
+import django
+import os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'email_classifier.settings')
+try:
+    django.setup()
+    print('Django configurado com sucesso')
+except Exception as e:
+    print(f'Erro na configuração do Django: {e}')
+    import traceback
+    traceback.print_exc()
+    exit(1)
+"
+
+# Esperar o banco de dados ficar disponível (se PostgreSQL)
+echo "Verificando banco de dados..."
 python3 -c "
 import os
 import time
@@ -85,8 +134,8 @@ python3 manage.py migrate --noinput || {
 echo "Coletando arquivos estáticos..."
 python3 manage.py collectstatic --noinput --clear
 
-# Verificar se o Django consegue inicializar
-echo "Verificando Django..."
+# Verificar se o Django consegue inicializar completamente
+echo "Verificando Django com --check..."
 python3 manage.py check
 
 # Criar superusuário se não existir
@@ -100,25 +149,42 @@ else:
     print('Superusuário já existe')
 "
 
+# Teste rápido da aplicação Django
+echo "Testando importação de views..."
+python3 -c "
+try:
+    from classifier.views import api_status
+    from django.test import RequestFactory
+    request = RequestFactory().get('/api/status/')
+    response = api_status(request)
+    print(f'View api_status retornou status: {response.status_code}')
+except Exception as e:
+    print(f'Erro ao testar view: {e}')
+    import traceback
+    traceback.print_exc()
+"
+
 echo "Iniciando servidor Gunicorn..."
 echo "DEBUG=${DEBUG:-False}"
+echo "PORT=${PORT}"
 echo "ALLOWED_HOSTS=${ALLOWED_HOSTS:-all}"
-echo "CORS_ALLOW_ALL_ORIGINS=True"
 
 # Configurações importantes para o CORS e CSRF
-export DJANGO_SETTINGS_MODULE=email_classifier.settings
 export CORS_ALLOW_ALL_ORIGINS=True
 export CORS_ORIGIN_WHITELIST=${CORS_ORIGIN_WHITELIST:-"https://email-classifier-ten.vercel.app,http://localhost:3000"}
 
-# Iniciar o servidor com configuração robusta
+# Iniciar o servidor com configuração otimizada para Railway
 exec gunicorn email_classifier.wsgi:application \
-    --bind 0.0.0.0:${PORT:-8000} \
-    --workers 2 \
+    --bind 0.0.0.0:${PORT} \
+    --workers 3 \
+    --worker-class sync \
+    --worker-connections 1000 \
     --timeout 120 \
+    --keep-alive 5 \
     --max-requests 1000 \
     --max-requests-jitter 100 \
+    --preload \
     --log-level info \
     --access-logfile - \
     --error-logfile - \
-    --capture-output \
-    --enable-stdio-inheritance
+    --capture-output

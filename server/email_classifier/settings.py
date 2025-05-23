@@ -41,6 +41,9 @@ if 'RAILWAY_STATIC_URL' in os.environ:
 elif 'DATABASE_URL' in os.environ:
     # Estamos no Railway mesmo sem RAILWAY_STATIC_URL
     ALLOWED_HOSTS = ['*']
+elif 'RAILWAY_ENVIRONMENT' in os.environ:
+    # Nova forma de detectar Railway
+    ALLOWED_HOSTS = ['*']
 else:
     ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
@@ -302,6 +305,24 @@ if not DEBUG:
     # Para Railway
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
+# Configurações específicas para Railway
+if any(key in os.environ for key in ['RAILWAY_ENVIRONMENT', 'DATABASE_URL', 'RAILWAY_STATIC_URL']):
+    print("[INFO] Configurações Railway aplicadas")
+
+    if DEBUG:
+        SECURE_SSL_REDIRECT = False
+    else:
+        SECURE_SSL_REDIRECT = True
+        SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+    # Configurações de timeout para Railway
+    WSGI_APPLICATION = 'email_classifier.wsgi.application'
+
+    # Headers de segurança específicos para Railway
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    X_FRAME_OPTIONS = 'DENY'
+
 # Configurações de logging para Railway
 LOGGING = {
     'version': 1,
@@ -342,6 +363,7 @@ LOGGING = {
 }
 
 print(f"[INFO] Django iniciado. DEBUG={DEBUG}, ALLOWED_HOSTS={ALLOWED_HOSTS}")
+print(f"[INFO] Ambiente detectado: {'Railway' if any(key in os.environ for key in ['RAILWAY_ENVIRONMENT', 'DATABASE_URL']) else 'Local'}")
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
