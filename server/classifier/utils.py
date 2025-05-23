@@ -154,3 +154,36 @@ def clean_content(text, subject="", sender=""):
 def get_timestamp():
     """Retorna um timestamp formatado para uso em nomes de arquivos"""
     return datetime.now().strftime("%Y%m%d%H%M%S")
+
+def smart_truncate(text, max_length, suffix="..."):
+    """
+    Trunca texto de forma inteligente, tentando quebrar em palavras
+    """
+    if not text:
+        return ''
+    if len(text) <= max_length:
+        return text
+
+    # Se o texto for muito longo, tenta truncar na última palavra completa
+    truncated = text[:max_length - len(suffix)]
+    last_space_index = truncated.rfind(' ')
+
+    # Se encontrou um espaço e não está muito próximo do início
+    if last_space_index > max_length * 0.7:
+        return truncated[:last_space_index] + suffix
+
+    # Caso contrário, trunca no limite exato
+    return truncated + suffix
+
+def format_text_for_display(text, max_length=200):
+    """
+    Formata texto para exibição, removendo quebras de linha excessivas e truncando
+    """
+    if not text:
+        return ''
+
+    # Normalizar espaços em branco
+    text = ' '.join(text.split())
+
+    # Truncar se necessário
+    return smart_truncate(text, max_length)

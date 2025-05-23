@@ -552,7 +552,7 @@ def api_email_detail(request, pk):
     """
     try:
         user_ip = get_client_ip(request)
-        email = get_object_or_404(Email, pk=pk, user_ip=user_ip)  # Filtrar por IP
+        email = get_object_or_404(Email, pk=pk, user_ip=user_ip)
 
         # Formatando a data para facilitar o processamento no frontend
         created_at_str = email.created_at.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
@@ -575,5 +575,57 @@ def api_email_detail(request, pk):
     except Exception as e:
         logger.error(f"Erro ao obter detalhes do email: {str(e)}")
         response = JsonResponse({"error": str(e)}, status=500)
+        _add_cors_headers(response, request.headers.get('origin'))
+        return response
+
+def api_job_status(request, job_id):
+    """
+    API para verificar o status de um job específico na fila.
+    """
+    try:
+        origin = request.headers.get('origin', 'desconhecida')
+        logger.info(f"API job status chamado para job {job_id}, origem: {origin}")
+
+        # Obter o job da fila
+        job = job_queue.get_job(job_id)
+
+        if not job:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Job {job_id} não encontrado'
+            }, status=404)
+
+        # Retornar dados do job
+        job_data = job.to_dict()
+
+        # Se o job foi concluído e tem resultado, incluir detalhes do email
+        if job.status == JobStatus.COMPLETED and job.result:
+            # Verificar se o resultado contém dados de email processado
+            if isinstance(job.result, dict) and 'email_id' in job.data:
+                try:
+                    user_ip = get_client_ip(request)
+                    email = Email.objects.filter(pk=job.data['email_id'], user_ip=user_ip).first()
+
+                    if email:
+                        job_data['email'] = {
+                            'id': email.id,
+                            'subject': email.subject,
+                            'category': email.category,
+                            'confidence_score': email.confidence_score,
+                            'is_processed': email.category not in ['pending', 'error']
+                        }
+                except Exception as e:
+                    logger.error(f"Erro ao obter dados do email para job {job_id}: {e}")
+
+        response = JsonResponse(job_data)
+        _add_cors_headers(response, request.headers.get('origin'))
+        return response
+
+    except Exception as e:
+        logger.error(f"Erro ao obter status do job {job_id}: {str(e)}")
+        response = JsonResponse({
+            'status': 'error',
+            'message': f'Erro interno: {str(e)}'
+        }, status=500)
         _add_cors_headers(response, request.headers.get('origin'))
         return response

@@ -10,7 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { formatCategory } from "@/lib/utils";
+import { formatCategory, smartTruncate, extractNameFromEmail } from "@/lib/utils";
 import { API_URLS } from "@/lib/api-helpers";
 import { Mail, Clock, TrendingUp, ArrowRight, CheckCircle2, AlertTriangle, Search } from "lucide-react";
 
@@ -208,13 +208,13 @@ export default function EmailList({
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="card-title text-lg truncate group-hover:text-primary transition-colors">
-                      {email.subject}
+                    <CardTitle className="card-title text-lg group-hover:text-primary transition-colors">
+                      {smartTruncate(email.subject, 80)}
                     </CardTitle>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-sm text-muted-foreground font-medium">De:</span>
                       <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 truncate">
-                        {email.sender}
+                        {smartTruncate(extractNameFromEmail(email.sender) || email.sender, 40)}
                       </span>
                     </div>
                   </div>
