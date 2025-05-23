@@ -3,15 +3,14 @@ from django.contrib import messages
 from django.views.generic import ListView, DetailView
 import logging
 from datetime import datetime
-
-from server.email_classifier import settings
+from django.conf import settings  # Importação correta para o Django
 from .models import Email
 from .forms import EmailForm
 from .utils import extract_text_from_file
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from .ai_service import process_email, queue_email_processing, queue_complete_email_processing, gemini_limiter, job_queue
-from .job_queue import JobStatus  # Adicionando import faltante
+from .job_queue import JobStatus
 
 logger = logging.getLogger(__name__)
 

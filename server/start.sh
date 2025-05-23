@@ -11,7 +11,7 @@ fi
 
 # Esperar o banco de dados ficar disponível
 echo "Aguardando banco de dados..."
-python -c "
+python3 -c "
 import os
 import time
 import sys
@@ -68,10 +68,10 @@ else:
 }
 
 # Preparar diretórios
-echo "Verificando diretórios de mídia e arquivos estáticos..."
-mkdir -p server/media/uploads
-mkdir -p server/static
-mkdir -p server/staticfiles
+echo "Criando diretórios necessários..."
+mkdir -p media/uploads
+mkdir -p static
+mkdir -p staticfiles
 
 # Executar migrações
 echo "Executando migrações..."

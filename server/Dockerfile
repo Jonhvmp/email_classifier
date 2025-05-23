@@ -19,6 +19,10 @@ COPY . .
 COPY start.sh .
 RUN chmod +x start.sh
 
+# Criar diretórios necessários com permissões corretas
+RUN mkdir -p media/uploads static staticfiles && \
+    chmod 755 media media/uploads static staticfiles
+
 # Criar usuário não-root
 RUN useradd --create-home --shell /bin/bash app
 
