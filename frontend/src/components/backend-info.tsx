@@ -7,8 +7,8 @@ import { CircleOff, CheckCircle, Info } from "lucide-react";
 import { toast } from "sonner";
 
 // Garanta que todas as URLs terminem com barra
-const API_BACKEND = process.env.NEXT_PUBLIC_API_BACKEND || "http://localhost:8001";
-const API_BACKEND_STATUS = process.env.NEXT_PUBLIC_API_BACKEND_STATUS || "http://localhost:8001/api/status/";
+const API_BACKEND = process.env.NEXT_PUBLIC_API_BACKEND || "http://localhost:8000";
+const API_BACKEND_STATUS = process.env.NEXT_PUBLIC_API_BACKEND_STATUS || "http://localhost:8000/api/status/";
 
 export function BackendInfo() {
   const [backendStatus, setBackendStatus] = useState<"online" | "offline" | "loading">("loading");

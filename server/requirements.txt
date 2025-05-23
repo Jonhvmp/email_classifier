@@ -12,4 +12,7 @@ cohere==4.52
 pytest==7.4.3
 pytest-django==4.5.2
 huggingface-hub==0.31.4
-google-generativeai>=0.3.0
+google-generativeai>=0.8.5
+mkdocs>=1.5.0
+mkdocs-material>=9.4.0
+mkdocs-awesome-pages-plugin>=2.9.0
