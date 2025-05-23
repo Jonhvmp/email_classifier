@@ -110,22 +110,38 @@ if is_railway:
 
     # Tentar usar DATABASE_URL primeiro
     if 'DATABASE_URL' in os.environ:
-        # print(f"[INFO] Usando DATABASE_URL: {os.environ['DATABASE_URL'][:50]}...")
+        # Removido o print da DATABASE_URL por segurança
+        print(f"[INFO] Usando DATABASE_URL configurada")
 
-        DATABASES = {
-            'default': dj_database_url.parse(
-                os.environ.get('DATABASE_URL'),
-                conn_max_age=600,
-                conn_health_checks=True,
-            )
-        }
+        try:
+            DATABASES = {
+                'default': dj_database_url.parse(
+                    os.environ.get('DATABASE_URL'),
+                    conn_max_age=600,
+                    conn_health_checks=True,
+                )
+            }
 
-        # Configurações específicas para PostgreSQL no Railway
-        DATABASES['default']['OPTIONS'] = {
-            'sslmode': 'require',
-        }
+            # Configurações específicas para PostgreSQL no Railway
+            DATABASES['default']['OPTIONS'] = {
+                'sslmode': 'require',
+                'connect_timeout': 30,
+            }
 
-        print(f"[INFO] PostgreSQL configurado via DATABASE_URL")
+            print(f"[INFO] PostgreSQL configurado via DATABASE_URL")
+            print(f"[INFO] Host: {DATABASES['default'].get('HOST', 'N/A')}")
+            print(f"[INFO] Port: {DATABASES['default'].get('PORT', 'N/A')}")
+            print(f"[INFO] Database: {DATABASES['default'].get('NAME', 'N/A')}")
+
+        except Exception as e:
+            print(f"[ERROR] Erro ao processar DATABASE_URL: {e}")
+            # Fallback para SQLite se DATABASE_URL estiver malformada
+            DATABASES = {
+                'default': {
+                    'ENGINE': 'django.db.backends.sqlite3',
+                    'NAME': BASE_DIR / 'db.sqlite3',
+                }
+            }
 
     # Fallback para variáveis individuais do PostgreSQL
     elif all(key in os.environ for key in ['PGHOST', 'PGDATABASE', 'PGUSER', 'POSTGRES_PASSWORD']):
@@ -234,6 +250,47 @@ if not DEBUG:
 
     # Para Railway
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Configurações de logging para Railway
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple'
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'classifier': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
+print(f"[INFO] Django iniciado. DEBUG={DEBUG}, ALLOWED_HOSTS={ALLOWED_HOSTS}")
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

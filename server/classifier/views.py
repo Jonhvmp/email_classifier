@@ -142,32 +142,55 @@ def api_status(request):
     """
     View para verificar o status da API.
     """
-    endpoints = {
-        "/": "Página inicial com formulário",
-        "/emails/": "Lista de emails classificados",
-        "/emails/1/": "Detalhes de um email específico (substitua 1 pelo ID)",
-        "/about/": "Sobre o projeto",
-        "/api/status/": "Status da API (este endpoint)",
-        "/api/submit-email/": "Endpoint para submissão de emails (POST)",
-        "/api/emails/": "Lista de todos os emails em formato JSON",
-        "/api/emails/1/": "Detalhes de um email específico em JSON (substitua 1 pelo ID)",
-        "/api/usage/": "Estatísticas de uso da API"
-    }
+    try:
+        endpoints = {
+            "/": "Página inicial com formulário",
+            "/emails/": "Lista de emails classificados",
+            "/emails/1/": "Detalhes de um email específico (substitua 1 pelo ID)",
+            "/about/": "Sobre o projeto",
+            "/api/status/": "Status da API (este endpoint)",
+            "/api/submit-email/": "Endpoint para submissão de emails (POST)",
+            "/api/emails/": "Lista de todos os emails em formato JSON",
+            "/api/emails/1/": "Detalhes de um email específico em JSON (substitua 1 pelo ID)",
+            "/api/usage/": "Estatísticas de uso da API"
+        }
 
-    logger.info(f"API status chamado, origem: {request.headers.get('origin', 'desconhecida')}")
+        logger.info(f"API status chamado, origem: {request.headers.get('origin', 'desconhecida')}")
 
-    response = JsonResponse({
-        "status": "online",
-        "message": "API está funcionando corretamente",
-        "endpoints": endpoints,
-        "csrf_required": False,
-        "version": "1.0.3"
-    })
+        # Verificar conexão com banco de dados
+        from django.db import connection
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+            db_status = "connected"
+        except Exception as e:
+            db_status = f"error: {str(e)}"
+            logger.error(f"Erro de conexão com banco: {e}")
 
-    response["Access-Control-Allow-Origin"] = "*"
-    response["Access-Control-Allow-Methods"] = "GET, OPTIONS, POST"
-    response["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With, Accept"
-    return response
+        response_data = {
+            "status": "online",
+            "message": "API está funcionando corretamente",
+            "database": db_status,
+            "endpoints": endpoints,
+            "csrf_required": False,
+            "version": "1.0.4"
+        }
+
+        response = JsonResponse(response_data)
+
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Methods"] = "GET, OPTIONS, POST"
+        response["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With, Accept"
+
+        logger.info("✅ API status response enviada com sucesso")
+        return response
+
+    except Exception as e:
+        logger.error(f"❌ Erro no endpoint api_status: {e}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Erro interno: {str(e)}"
+        }, status=500)
 
 def api_usage(request):
     """

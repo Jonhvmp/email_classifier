@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["python311", "python311Packages.pip"]
+nixPkgs = ["python311", "python311Packages.pip", "postgresql"]
 
 [phases.install]
 dependsOn = ["setup"]
@@ -10,5 +10,6 @@ cmd = "chmod +x start.sh && ./start.sh"
 
 [variables]
 PYTHONPATH = "./server"
-# Garantir que o Railway reconheça que é uma aplicação Django
 DJANGO_SETTINGS_MODULE = "email_classifier.settings"
+# Configurações específicas para Railway
+PYTHONUNBUFFERED = "1"
