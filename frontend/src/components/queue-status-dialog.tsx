@@ -40,7 +40,7 @@ export function QueueStatusDialog() {
   const fetchQueueStats = async () => {
     try {
       setLoading(true);
-      const response = await fetch(API_URLS.API_USAGE);
+      const response = await fetch(API_URLS.USAGE);
 
       if (!response.ok) {
         throw new Error(`Falha ao obter estatísticas da fila: ${response.status}`);

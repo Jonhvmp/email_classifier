@@ -4,6 +4,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://email-classifie
 export const API_URLS = {
   STATUS: `${API_BASE_URL}/api/status/`,
   USAGE: `${API_BASE_URL}/api/usage/`,
+  API_USAGE: `${API_BASE_URL}/api/usage/`,
   SUBMIT_EMAIL: `${API_BASE_URL}/api/submit-email/`,
   EMAILS_LIST: `${API_BASE_URL}/api/emails/`,
   EMAIL_DETAIL: (id: string) => `${API_BASE_URL}/api/emails/${id}/`,
