@@ -1,18 +1,28 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Badge } from "@/components/ui/badge";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Progress } from "@/components/ui/progress";
-import { formatCategory } from "@/lib/utils";
-import { AlertCircle, Loader2 } from "lucide-react";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { formatCategory, extractNameFromEmail } from "@/lib/utils";
 import { API_URLS } from "@/lib/api-helpers";
+import {
+  ArrowLeft,
+  Mail,
+  TrendingUp,
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
+  Copy,
+  User,
+  Calendar
+} from "lucide-react";
 
 interface Email {
   id: number;
@@ -25,7 +35,12 @@ interface Email {
   confidence_score: number;
 }
 
-export function EmailDetail({ id }: { id: string }) {
+interface EmailDetailProps {
+  id: number;
+}
+
+export function EmailDetail({ id }: EmailDetailProps) {
+  const router = useRouter();
   const [email, setEmail] = useState<Email | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +94,7 @@ export function EmailDetail({ id }: { id: string }) {
         setTimeout(fetchEmailDetails, 2000);
       } else {
         setIsPending(false);
+        // Resetar contador quando processamento completo
         if (data.category !== 'pending') {
           setRetryCount(0);
         }
@@ -102,123 +118,212 @@ export function EmailDetail({ id }: { id: string }) {
     fetchEmailDetails();
   }, [fetchEmailDetails]);
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <Skeleton className="h-8 w-3/4 mb-2" />
-          <Skeleton className="h-4 w-1/2" />
-        </div>
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
+  const handleCopyResponse = async () => {
+    if (email?.suggested_response) {
+      try {
+        await navigator.clipboard.writeText(email.suggested_response);
+        toast.success("Resposta copiada!", {
+          description: "A resposta sugerida foi copiada para a área de transferência.",
+        });
+      } catch {
+        toast.error("Erro ao copiar", {
+          description: "Não foi possível copiar a resposta para a área de transferência.",
+        });
+      }
+    }
+  };
 
-  if (error || !email) {
-    return (
-      <div className="space-y-6">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Email não encontrado</AlertTitle>
-          <AlertDescription>
-            {error || "O email solicitado não existe ou foi removido."}
-          </AlertDescription>
-        </Alert>
+  const handleRefresh = () => {
+    setLoading(true);
+    setRetryCount(0);
+    fetchEmailDetails();
+  };
 
-        <div className="text-center py-10">
-          <h3 className="text-lg font-medium">Email não encontrado</h3>
-          <p className="text-muted-foreground">
-            O email solicitado não existe ou foi removido.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Se o email ainda está pendente de processamento
-  if (isPending) {
+  if (loading && !email) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold mb-2">{email.subject}</h2>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span>De: {email.sender}</span>
-            <span>•</span>
-            <span>
-              {format(new Date(email.created_at), "PPP 'às' HH:mm", { locale: ptBR })}
-            </span>
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-10 w-10" />
+            <Skeleton className="h-8 w-48" />
           </div>
+
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+            </CardContent>
+          </Card>
         </div>
-
-        <Alert className="bg-blue-50 border-blue-200 text-blue-800">
-          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          <AlertTitle>Processando email</AlertTitle>
-          <AlertDescription>
-            Este email ainda está sendo processado pela nossa IA.
-            Aguarde alguns instantes e atualize a página para ver o resultado.
-          </AlertDescription>
-        </Alert>
-
-        <Card>
-          <CardContent className="p-4">
-            <pre className="whitespace-pre-wrap font-sans">{email.content}</pre>
-          </CardContent>
-        </Card>
       </div>
     );
+  }
+
+  if (error && !email) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center gap-4 mb-6">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.back()}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Voltar
+            </Button>
+          </div>
+
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              {error}
+            </AlertDescription>
+          </Alert>
+        </div>
+      </div>
+    );
+  }
+
+  if (!email) {
+    return null;
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold mb-2 tracking-tight">{email.subject}</h2>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground font-medium">
-          <span>De: {email.sender}</span>
-          <span>•</span>
-          <span>
-            {format(new Date(email.created_at), "PPP 'às' HH:mm", { locale: ptBR })}
-          </span>
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.back()}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Voltar
+            </Button>
+            <h1 className="text-2xl font-bold">Detalhes do Email</h1>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isPending && (
+              <Badge variant="secondary" className="animate-pulse">
+                <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                Processando...
+              </Badge>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <div className="flex items-center gap-4">
-        <Badge
-          variant={email.category === "productive" ? "default" : "secondary"}
-          className="px-3 py-1 text-sm font-medium"
-        >
-          {formatCategory(email.category)}
-        </Badge>
+        {/* Email Details */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div className="space-y-2 flex-1">
+                <CardTitle className="text-xl leading-tight">
+                  {email.subject || "Sem assunto"}
+                </CardTitle>
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    {extractNameFromEmail(email.sender)}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Mail className="h-3 w-3" />
+                    {email.sender}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    {formatDistanceToNow(new Date(email.created_at), {
+                      locale: ptBR,
+                      addSuffix: true,
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 ml-4">
+                <Badge
+                  variant={email.category === "productive" ? "default" : "secondary"}
+                  className="text-xs"
+                >
+                  {email.category === "productive" ? (
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                  ) : (
+                    <TrendingUp className="w-3 h-3 mr-1" />
+                  )}
+                  {formatCategory(email.category)}
+                </Badge>
+                <span className="text-xs text-muted-foreground font-mono">
+                  {Math.round(email.confidence_score)}%
+                </span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="prose max-w-none">
+              <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                Conteúdo do Email:
+              </h4>
+              <div className="whitespace-pre-wrap text-sm bg-muted/50 p-4 rounded-md">
+                {email.content}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Confiança:</span>
-          <Progress value={email.confidence_score} className="w-24 h-2" />
-          <span className="text-sm font-semibold">{Math.round(email.confidence_score)}%</span>
-        </div>
-      </div>
-
-      <Tabs defaultValue="content">
-        <TabsList>
-          <TabsTrigger value="content" className="font-medium">Conteúdo Original</TabsTrigger>
-          <TabsTrigger value="response" className="font-medium">Resposta Sugerida</TabsTrigger>
-        </TabsList>
-        <TabsContent value="content">
+        {/* Suggested Response */}
+        {email.suggested_response && email.category !== 'pending' && (
           <Card>
-            <CardContent className="p-4">
-              <pre className="email-content whitespace-pre-wrap">{email.content}</pre>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="response">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="card-title text-base">Sugestão de resposta</CardTitle>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Resposta Sugerida</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyResponse}
+                  className="flex items-center gap-2"
+                >
+                  <Copy className="h-4 w-4" />
+                  Copiar
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="p-4">
-              <pre className="email-content whitespace-pre-wrap">{email.suggested_response}</pre>
+            <CardContent>
+              <div className="whitespace-pre-wrap text-sm bg-blue-50 dark:bg-blue-950/20 p-4 rounded-md border-l-4 border-blue-500">
+                {email.suggested_response}
+              </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        )}
+
+        {/* Processing Status */}
+        {email.category === 'pending' && (
+          <Alert>
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            <AlertDescription>
+              Este email ainda está sendo processado pela nossa IA. A página será atualizada automaticamente quando o processamento for concluído.
+              {retryCount > 0 && ` (Tentativa ${retryCount}/20)`}
+            </AlertDescription>
+          </Alert>
+        )}
+      </div>
     </div>
   );
 }

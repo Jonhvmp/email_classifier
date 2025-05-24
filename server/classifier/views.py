@@ -37,8 +37,10 @@ def home(request):
         logger.info(f"Processando formulário, é válido? {form.is_valid()}")
 
         if form.is_valid():
-            # Obter IP do usuário
+            # Obter IP do usuário - SEMPRE obter um valor
             user_ip = get_client_ip(request)
+            if not user_ip:
+                user_ip = '127.0.0.1'  # Fallback
             logger.info(f"Processando email de IP: {user_ip}")
 
             email = form.save(commit=False)
@@ -445,9 +447,12 @@ def _process_valid_form_async(form, is_api=False, user_ip=None):
     """
     email = form.save(commit=False)
 
-    # Definir IP do usuário se não fornecido
+    # Definir IP do usuário - SEMPRE definir um valor
     if user_ip:
         email.user_ip = user_ip
+    else:
+        # Fallback para IP padrão se não conseguir obter o IP real
+        email.user_ip = '127.0.0.1'
 
     input_method = form.cleaned_data.get('input_method')
 

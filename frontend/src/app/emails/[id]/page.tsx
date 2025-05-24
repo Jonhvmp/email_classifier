@@ -39,7 +39,7 @@ export default function EmailDetailPage(props: Props) {
 
       <div className="bg-card rounded-lg border p-6 shadow-sm">
         <h1 className="text-2xl font-bold mb-6">Detalhes do Email #{id}</h1>
-        <EmailDetail id={id} />
+        <EmailDetail id={parseInt(id)} />
       </div>
     </div>
   );

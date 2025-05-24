@@ -2,7 +2,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('classifier', '0006_email_classifier__categor_a8a30b_idx_and_more'),
     ]
@@ -11,7 +10,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='email',
             name='user_ip',
-            field=models.GenericIPAddressField(blank=True, null=True, verbose_name='IP do Usuário'),
+            field=models.GenericIPAddressField(null=True, blank=True, verbose_name='IP do Usuário'),
         ),
         migrations.AddIndex(
             model_name='email',
