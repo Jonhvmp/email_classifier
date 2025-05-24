@@ -406,7 +406,9 @@ def api_submit_email(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método não permitido'}, status=405)
 
-    logger.info("Recebendo submissão de email via API")
+    # Log detalhado da requisição
+    origin = request.headers.get('origin', request.META.get('HTTP_ORIGIN', 'desconhecida'))
+    logger.info(f"API submit email chamado | Origin: {origin}")
 
     try:
         # Obter IP do usuário para API
@@ -422,11 +424,16 @@ def api_submit_email(request):
                 'errors': form.errors.as_json()
             }, status=400)
 
+        logger.info("Form válido, processando...")
+
         # Usar versão assíncrona com IP
-        return _process_valid_form_async(form, is_api=True, user_ip=user_ip)
+        result = _process_valid_form_async(form, is_api=True, user_ip=user_ip)
+
+        logger.info(f"Email processado com sucesso: ID {result.get('id', 'N/A')}")
+        return result
 
     except Exception as e:
-        logger.error(f"ERRO geral: {str(e)}")
+        logger.error(f"ERRO geral: {str(e)}", exc_info=True)
         return JsonResponse({
             'status': 'error',
             'message': f'Erro interno: {str(e)}'
@@ -517,25 +524,44 @@ def api_emails_list(request):
     API para listar emails - APENAS DO USUÁRIO ATUAL.
     """
     try:
+        # Log detalhado da requisição
+        origin = request.headers.get('origin', request.META.get('HTTP_ORIGIN', 'desconhecida'))
+        method = request.method
+        path = request.path
+        user_agent = request.META.get('HTTP_USER_AGENT', 'N/A')[:50]
+
+        logger.info(f"API emails list: {method} {path} | Origin: {origin} | UA: {user_agent}")
+
         user_ip = get_client_ip(request)
         logger.info(f"Listando emails para IP: {user_ip}")
+
+        # Verificar se há emails para este IP
+        total_emails = Email.objects.filter(user_ip=user_ip).count()
+        logger.info(f"Total de emails encontrados para IP {user_ip}: {total_emails}")
 
         emails = Email.objects.filter(user_ip=user_ip).order_by('-created_at')
 
         data = []
         for email in emails:
             try:
-                created_at_str = email.created_at.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-                data.append({
+                # Verificar se created_at existe e é válido
+                if email.created_at:
+                    created_at_str = email.created_at.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+                else:
+                    created_at_str = "2025-01-01T00:00:00.000000Z"
+
+                email_data = {
                     'id': email.id,
                     'subject': email.subject or 'Sem assunto',
                     'sender': email.sender or 'remetente@desconhecido.com',
                     'category': email.category or 'pending',
                     'created_at': created_at_str,
-                    'confidence_score': email.confidence_score or 0.0,
-                    'content': email.content[:200] + '...' if len(email.content) > 200 else email.content,
+                    'confidence_score': float(email.confidence_score) if email.confidence_score is not None else 0.0,
+                    'content': (email.content[:200] + '...') if email.content and len(email.content) > 200 else (email.content or ''),
                     'suggested_response': email.suggested_response or ''
-                })
+                }
+                data.append(email_data)
+                logger.debug(f"Email ID {email.id} processado: {email.subject[:30]}...")
             except Exception as e:
                 logger.error(f"Erro ao processar email ID {email.id}: {str(e)}")
                 continue
@@ -550,20 +576,21 @@ def api_emails_list(request):
         logger.info(f"Retornando {len(data)} emails para IP {user_ip}")
 
         response = JsonResponse(response_data)
-        _add_cors_headers(response, request.headers.get('origin'))
+        _add_cors_headers(response, origin)
         return response
 
     except Exception as e:
-        logger.error(f"Erro ao listar emails: {str(e)}")
+        logger.error(f"Erro ao listar emails: {str(e)}", exc_info=True)
         # Sempre retornar estrutura consistente mesmo em caso de erro
         response_data = {
             'emails': [],  # Array vazio em caso de erro
             'count': 0,
             'error': str(e),
-            'success': False
+            'success': False,
+            'user_ip': get_client_ip(request) if 'request' in locals() else 'unknown'
         }
         response = JsonResponse(response_data, status=500)
-        _add_cors_headers(response, request.headers.get('origin'))
+        _add_cors_headers(response, request.headers.get('origin') if 'request' in locals() else None)
         return response
 
 def api_email_detail(request, pk):

@@ -234,10 +234,10 @@ export default function EmailSubmissionForm() {
     });
 
     setLoading(false);
-    // Redirecionar para a página de detalhes
-    setTimeout(() => {
-      router.push(`/emails/${emailId}`);
-    }, 500);
+    setProcessingStatus(null);
+
+    // Navegar para a página de detalhes do email
+    router.push(`/emails/${emailId}`);
   };
 
   const handleError = (error: unknown) => {

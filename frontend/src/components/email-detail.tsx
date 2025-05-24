@@ -38,10 +38,23 @@ export function EmailDetail({ id }: { id: string }) {
       const apiUrl = API_URLS.EMAIL_DETAIL(emailId);
       console.log(`Buscando detalhes do email ${emailId} em: ${apiUrl}`);
 
-      const response = await fetch(apiUrl);
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-cache',
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error(`Erro HTTP ${response.status}:`, errorText);
+
+        if (response.status === 404) {
+          throw new Error("Email não encontrado ou você não tem permissão para visualizá-lo");
+        }
+
         if (errorText.includes("has no column named")) {
           console.error("Database schema error:", errorText);
           throw new Error("Erro de esquema do banco de dados. Execute as migrações do backend.");
@@ -59,19 +72,16 @@ export function EmailDetail({ id }: { id: string }) {
       console.log("Email carregado com sucesso:", data);
 
       // Verificar se o email ainda está pendente
-      if (data.category === 'pending') {
+      if (data.category === 'pending' && retryCount < 20) {
         setIsPending(true);
         setRetryCount(prev => prev + 1);
-
-        // Se ainda não chegou ao limite máximo de tentativas, agendar nova verificação
-        if (retryCount < 20) { // Máximo de 20 tentativas (aprox. 40 segundos)
-          setTimeout(fetchEmailDetails, 2000); // Verificar novamente em 2 segundos
-        } else {
-          // Atingiu o limite de tentativas, mostrar o email como está
-          setIsPending(false);
-        }
+        // Agendar nova verificação em 2 segundos
+        setTimeout(fetchEmailDetails, 2000);
       } else {
         setIsPending(false);
+        if (data.category !== 'pending') {
+          setRetryCount(0);
+        }
       }
 
       setEmail(data);
@@ -81,7 +91,7 @@ export function EmailDetail({ id }: { id: string }) {
       setError(error instanceof Error ? error.message : "Erro desconhecido");
       setIsPending(false);
       toast.error("Erro ao carregar detalhes", {
-        description: "Não foi possível obter os detalhes deste email do servidor.",
+        description: error instanceof Error ? error.message : "Não foi possível obter os detalhes deste email do servidor.",
       });
     } finally {
       setLoading(false);

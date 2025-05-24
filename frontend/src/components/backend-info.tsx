@@ -3,176 +3,203 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Server, Database, Clock, AlertCircle, CheckCircle } from "lucide-react";
-import { API_URLS } from "@/lib/api-helpers";
+import { CircleOff, CheckCircle, Info, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 
-interface BackendStatus {
-  status: string;
-  message: string;
-  version: string;
-  timestamp: string;
-  server_info: {
-    python_version: string;
-    django_version: string;
-    environment: string;
-    port: string;
-  };
-  database: {
-    status: string;
-    engine: string;
-  };
-  job_queue: string;
-  debug_mode: boolean;
-}
+// Garanta que todas as URLs terminem com barra
+const API_BACKEND = process.env.NEXT_PUBLIC_API_BACKEND || '';
+const API_BACKEND_STATUS = process.env.NEXT_PUBLIC_API_BACKEND_STATUS || `${API_BACKEND}/api/status/`;
 
 export function BackendInfo() {
-  const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  async function fetchBackendStatus() {
-    try {
-      const response = await fetch(API_URLS.API_STATUS);
-
-      if (!response.ok) {
-        throw new Error(`Falha ao obter status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setBackendStatus(data);
-      setError(null);
-    } catch (error) {
-      console.error("Erro ao carregar status do backend:", error);
-      setError(error instanceof Error ? error.message : "Erro desconhecido");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [backendStatus, setBackendStatus] = useState<"online" | "offline" | "loading" | "error">("loading");
+  const [lastCheck, setLastCheck] = useState<Date | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
   useEffect(() => {
-    fetchBackendStatus();
+    async function checkBackendStatus() {
+      try {
+        console.log(`Verificando status em: ${API_BACKEND_STATUS}`);
 
-    // Atualizar a cada 30 segundos
-    const interval = setInterval(fetchBackendStatus, 30000);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundo timeout
+
+        const response = await fetch(API_BACKEND_STATUS, {
+          method: "GET",
+          headers: {
+            "Accept": "application/json",
+            "Origin": window.location.origin,
+            "Cache-Control": "no-cache", // Evitar cache
+          },
+          signal: controller.signal,
+          cache: 'no-cache',
+          mode: 'cors',
+          credentials: 'omit', // Não enviar cookies para simplificar
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log("Status da API:", data);
+          setBackendStatus("online");
+          setErrorMessage("");
+          setLastCheck(new Date());
+        } else {
+          console.error(`Status código: ${response.status}`);
+          setBackendStatus("offline");
+          setErrorMessage(`HTTP ${response.status}`);
+          setLastCheck(new Date());
+
+          if (!localStorage.getItem('backend-warning-shown')) {
+            toast.warning("Backend offline", {
+              description: `Servidor retornou ${response.status}: ${response.statusText}`
+            });
+            localStorage.setItem('backend-warning-shown', 'true');
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao verificar status do backend:", error);
+
+        if (error instanceof Error) {
+          let errorMsg = error.message;
+
+          // Melhor tratamento para erros comuns
+          if (error.name === 'AbortError') {
+            errorMsg = "Tempo esgotado";
+          } else if (errorMsg.includes('Failed to fetch')) {
+            errorMsg = "Erro de conexão";
+          } else if (errorMsg.includes('NetworkError')) {
+            errorMsg = "Erro de rede";
+          } else if (errorMsg.includes('CORS')) {
+            errorMsg = "Erro de CORS";
+          }
+
+          setErrorMessage(errorMsg);
+        } else {
+          setErrorMessage("Erro desconhecido");
+        }
+
+        setBackendStatus("error");
+        setLastCheck(new Date());
+
+        // Enviar apenas uma notificação de erro
+        if (!localStorage.getItem('backend-error-shown')) {
+          toast.error("Erro de conexão", {
+            description: "Não foi possível conectar ao servidor backend. Verifique sua conexão com a internet ou o status do servidor."
+          });
+          localStorage.setItem('backend-error-shown', 'true');
+
+          // Resetar os avisos após 5 minutos
+          setTimeout(() => {
+            localStorage.removeItem('backend-error-shown');
+            localStorage.removeItem('backend-warning-shown');
+          }, 5 * 60 * 1000);
+        }
+      }
+    }
+
+    checkBackendStatus();
+    const interval = setInterval(checkBackendStatus, 30000); // Verificar a cada 30 segundos
+
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Status do Backend</CardTitle>
-          <CardDescription>Carregando informações...</CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  if (error || !backendStatus) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Status do Backend</CardTitle>
-          <CardDescription>Informações não disponíveis</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              {error || "Não foi possível conectar com o backend"}
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const isOnline = backendStatus.status === "online";
+  const getStatusIcon = () => {
+    switch (backendStatus) {
+      case "loading":
+        return <Badge variant="outline" className="animate-pulse">Verificando...</Badge>;
+      case "online":
+        return (
+          <Badge className="bg-green-500">
+            <CheckCircle className="h-3 w-3 mr-1" /> Online
+          </Badge>
+        );
+      case "offline":
+        return (
+          <Badge variant="destructive">
+            <CircleOff className="h-3 w-3 mr-1" /> Offline
+          </Badge>
+        );
+      case "error":
+        return (
+          <Badge variant="destructive">
+            <AlertTriangle className="h-3 w-3 mr-1" /> Erro
+          </Badge>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Server className="h-5 w-5" />
-          Status do Backend
-        </CardTitle>
-        <CardDescription>
-          Informações do servidor e sistema
-        </CardDescription>
+        <CardTitle className="text-lg">Informações do Sistema</CardTitle>
+        <CardDescription>Status do servidor e API</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Status</span>
-          <Badge variant={isOnline ? "default" : "destructive"} className="flex items-center gap-1">
-            {isOnline ? (
-              <CheckCircle className="h-3 w-3" />
-            ) : (
-              <AlertCircle className="h-3 w-3" />
-            )}
-            {isOnline ? "Online" : "Offline"}
-          </Badge>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Versão</span>
-          <span className="text-sm font-mono">{backendStatus.version}</span>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Ambiente</span>
-          <Badge variant="outline" className="text-xs">
-            {backendStatus.server_info.environment}
-          </Badge>
-        </div>
-
-        <div className="pt-2 border-t">
-          <div className="flex items-center gap-2 mb-2">
-            <Database className="h-4 w-4" />
-            <span className="text-sm font-medium">Banco de Dados</span>
-          </div>
+      <CardContent>
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-sm">Status:</span>
-            <Badge
-              variant={backendStatus.database.status === "connected" ? "default" : "destructive"}
-              className="text-xs"
-            >
-              {backendStatus.database.status === "connected" ? "Conectado" : "Desconectado"}
-            </Badge>
+            <span className="text-sm">Status do Backend:</span>
+            {getStatusIcon()}
           </div>
-          <div className="flex items-center justify-between mt-1">
-            <span className="text-sm">Engine:</span>
-            <span className="text-xs font-mono">{backendStatus.database.engine}</span>
+
+          {errorMessage && (
+            <div className="text-sm text-red-600">
+              Erro: {errorMessage}
+            </div>
+          )}
+
+          {lastCheck && (
+            <div className="text-xs text-muted-foreground">
+              Última verificação: {lastCheck.toLocaleTimeString()}
+            </div>
+          )}
+
+          <div className="rounded-md bg-muted p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <Info className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium">API disponível em:</h3>
+                <div className="mt-2 text-sm text-muted-foreground">
+                  <p className="break-all">{API_BACKEND}</p>
+                </div>
+              </div>
+            </div>
           </div>
+
+          <div className="rounded-md bg-green-50 p-4 border border-green-200">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-green-800">Privacidade garantida</h3>
+                <div className="mt-2 text-sm text-green-700">
+                  <p>Seus emails são isolados automaticamente. Apenas você pode visualizar os emails que classificar.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {backendStatus === "error" && (
+            <div className="rounded-md bg-amber-50 p-4 border border-amber-200">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <AlertTriangle className="h-5 w-5 text-amber-400" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-amber-800">Problemas de conectividade</h3>
+                  <div className="mt-2 text-sm text-amber-700">
+                    <p>Verifique se o servidor Railway está ativo e funcionando corretamente.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-
-        <div className="pt-2 border-t">
-          <div className="flex items-center gap-2 mb-2">
-            <Clock className="h-4 w-4" />
-            <span className="text-sm font-medium">Sistema</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Django:</span>
-            <span className="text-xs font-mono">{backendStatus.server_info.django_version}</span>
-          </div>
-          <div className="flex items-center justify-between mt-1">
-            <span className="text-sm">Porta:</span>
-            <span className="text-xs font-mono">{backendStatus.server_info.port}</span>
-          </div>
-        </div>
-
-        {backendStatus.debug_mode && (
-          <Alert className="bg-yellow-50 border-yellow-200 text-yellow-800">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              Modo debug ativo (desenvolvimento)
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <p className="text-xs text-muted-foreground">
-          Última atualização: {new Date(backendStatus.timestamp).toLocaleTimeString()}
-        </p>
       </CardContent>
     </Card>
   );

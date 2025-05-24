@@ -90,7 +90,7 @@ export function formatConfidence(confidence: number): string {
 /**
  * Trunca texto de forma inteligente, tentando quebrar em palavras
  */
-export function smartTruncate(text: string, maxLength: number, suffix: string = '...'): string {
+export function smartTruncate(text: string, maxLength: number, suffix: string = "..."): string {
   if (!text) return '';
   if (text.length <= maxLength) return text;
 
