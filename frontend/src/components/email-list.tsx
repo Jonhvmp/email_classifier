@@ -21,6 +21,8 @@ interface Email {
   category: string;
   created_at: string;
   confidence_score: number;
+  content?: string;
+  suggested_response?: string;
 }
 
 interface EmailListProps {
@@ -29,6 +31,7 @@ interface EmailListProps {
   currentPage?: number;
   emailsPerPage?: number;
   onTotalEmailsChange?: (total: number) => void;
+  emails: Email[];
 }
 
 export default function EmailList({
@@ -36,9 +39,9 @@ export default function EmailList({
   selectedCategories = [],
   currentPage = 1,
   emailsPerPage = 10,
-  onTotalEmailsChange
+  onTotalEmailsChange,
+  emails
 }: EmailListProps) {
-  const [emails, setEmails] = useState<Email[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,7 +57,7 @@ export default function EmailList({
 
         const data = await response.json();
         console.log(`${data.length} emails recebidos do servidor`);
-        setEmails(data);
+        // setEmails(data);
       } catch (error) {
         console.error("Erro ao carregar emails:", error);
         toast.error("Erro ao carregar a lista de emails", {
@@ -276,6 +279,33 @@ export default function EmailList({
           </Link>
         </div>
       )}
+    </div>
+  );
+}
+
+export function EmailListFallback() {
+  return (
+    <div className="space-y-6">
+      {[...Array(5)].map((_, index) => (
+        <Card key={index} className="border-slate-200 dark:border-slate-700">
+          <CardHeader className="pb-4">
+            <Skeleton className="h-6 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+              <Skeleton className="h-4 w-20" />
+            </div>
+            <div className="mt-4">
+              <Skeleton className="h-2 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }

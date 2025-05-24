@@ -12,12 +12,15 @@ export function cn(...inputs: ClassValue[]) {
  * Formata uma categoria para exibição
  */
 export function formatCategory(category: string): string {
-  if (category === "productive") {
-    return "Produtivo";
-  } else if (category === "unproductive") {
-    return "Improdutivo";
-  }
-  return category.charAt(0).toUpperCase() + category.slice(1);
+  const categories: Record<string, string> = {
+    'productive': 'Produtivo',
+    'unproductive': 'Improdutivo',
+    'pending': 'Processando...',
+    'error': 'Erro',
+    'unknown': 'Desconhecido'
+  };
+
+  return categories[category] || category;
 }
 
 /**
@@ -45,12 +48,43 @@ export function extractNameFromEmail(email: string): string {
 }
 
 /**
+ * Formata o tempo de forma relativa
+ */
+export function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInMs = now.getTime() - date.getTime();
+  const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  const diffInDays = Math.floor(diffInHours / 24);
+
+  if (diffInMinutes < 1) {
+    return 'Agora mesmo';
+  } else if (diffInMinutes < 60) {
+    return `${diffInMinutes} min atrás`;
+  } else if (diffInHours < 24) {
+    return `${diffInHours}h atrás`;
+  } else if (diffInDays < 7) {
+    return `${diffInDays} dias atrás`;
+  } else {
+    return date.toLocaleDateString('pt-BR');
+  }
+}
+
+/**
  * Trunca um texto para um comprimento máximo, adicionando "..." no final se necessário
  */
 export function truncateText(text: string, maxLength: number): string {
   if (!text) return '';
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength) + '...';
+}
+
+/**
+ * Formata a confiança como uma string percentual
+ */
+export function formatConfidence(confidence: number): string {
+  return `${Math.round(confidence)}%`;
 }
 
 /**

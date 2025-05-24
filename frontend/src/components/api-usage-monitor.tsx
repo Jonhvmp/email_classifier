@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { AlertCircle, Clock, Layers } from "lucide-react";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Clock, AlertCircle, Layers } from "lucide-react";
 import { API_URLS } from "@/lib/api-helpers";
-import { Badge } from "./ui/badge";
 
 interface ActiveJob {
   id: string;

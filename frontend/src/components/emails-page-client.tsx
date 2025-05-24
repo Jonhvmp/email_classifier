@@ -238,6 +238,7 @@ export default function EmailsPageClient() {
               currentPage={currentPage}
               emailsPerPage={emailsPerPage}
               onTotalEmailsChange={setTotalEmails}
+              emails={[]}
             />
           </div>
 
