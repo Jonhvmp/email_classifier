@@ -45,6 +45,63 @@ interface SubmitOptions {
   onQueueUpdate?: (update: QueueUpdate) => void;
 }
 
+export const FILE_VALIDATION = {
+  maxSize: 5 * 1024 * 1024, // 5MB
+  allowedTypes: {
+    'text/plain': ['.txt'],
+    'application/pdf': ['.pdf'],
+  },
+  allowedExtensions: ['.txt', '.pdf'],
+};
+
+// Função para validar arquivo antes do envio
+export function validateFileForUpload(file: File): { isValid: boolean; error?: string } {
+  // Verificar tamanho
+  if (file.size > FILE_VALIDATION.maxSize) {
+    return {
+      isValid: false,
+      error: `Arquivo muito grande: ${(file.size / 1024 / 1024).toFixed(2)}MB. Máximo permitido: ${(FILE_VALIDATION.maxSize / 1024 / 1024).toFixed(1)}MB`
+    };
+  }
+
+  // Verificar se o arquivo está vazio
+  if (file.size === 0) {
+    return {
+      isValid: false,
+      error: 'Arquivo está vazio'
+    };
+  }
+
+  // Verificar extensão
+  const fileExt = `.${file.name.split('.').pop()?.toLowerCase()}`;
+  if (!FILE_VALIDATION.allowedExtensions.includes(fileExt)) {
+    return {
+      isValid: false,
+      error: `Extensão não permitida: ${fileExt}. Apenas ${FILE_VALIDATION.allowedExtensions.join(', ')} são aceitos`
+    };
+  }
+
+  // Verificar tipo MIME
+  const allowedMimeTypes = Object.keys(FILE_VALIDATION.allowedTypes);
+  if (!allowedMimeTypes.includes(file.type)) {
+    return {
+      isValid: false,
+      error: `Tipo MIME não permitido: ${file.type || 'desconhecido'}`
+    };
+  }
+
+  // Verificar consistência entre MIME e extensão
+  const expectedExtensions = FILE_VALIDATION.allowedTypes[file.type as keyof typeof FILE_VALIDATION.allowedTypes];
+  if (!expectedExtensions?.includes(fileExt)) {
+    return {
+      isValid: false,
+      error: `Inconsistência: arquivo com extensão ${fileExt} mas tipo MIME ${file.type}`
+    };
+  }
+
+  return { isValid: true };
+}
+
 // Função para submeter email e aguardar o processamento
 export async function submitEmailAndWait(
   formData: FormData,
@@ -56,6 +113,15 @@ export async function submitEmailAndWait(
     onUpdate,
     onQueueUpdate,
   } = options;
+
+  // Validar arquivo se presente
+  const file = formData.get('file') as File;
+  if (file && file.size > 0) {
+    const validation = validateFileForUpload(file);
+    if (!validation.isValid) {
+      throw new Error(`Validação de arquivo falhou: ${validation.error}`);
+    }
+  }
 
   // Submit o email inicialmente
   const submitResponse = await fetch(API_URLS.SUBMIT_EMAIL, {

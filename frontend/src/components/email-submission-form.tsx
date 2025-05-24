@@ -15,9 +15,19 @@ import { submitEmailAndWait, JobStatus } from "@/lib/api-helpers";
 import { QueueStatusDialog } from "./queue-status-dialog";
 
 const CHAR_LIMITS = {
-  sender: 50,
-  subject: 200,
-  content: 5000,
+  sender: 35,
+  subject: 50,
+  content: 2000,
+};
+
+// Constantes para limites de arquivo
+const FILE_LIMITS = {
+  maxSize: 5 * 1024 * 1024, // 5MB em bytes
+  allowedTypes: {
+    'text/plain': ['.txt'],
+    'application/pdf': ['.pdf'],
+  },
+  allowedExtensions: ['.txt', '.pdf'],
 };
 
 export default function EmailSubmissionForm() {
@@ -73,24 +83,66 @@ export default function EmailSubmissionForm() {
     setFormData((prev) => ({ ...prev, [name]: checked }));
   };
 
+  const validateFile = (file: File): { isValid: boolean; error?: string } => {
+    // Verificar tamanho do arquivo
+    if (file.size > FILE_LIMITS.maxSize) {
+      return {
+        isValid: false,
+        error: `Arquivo muito grande. Tamanho máximo: ${(FILE_LIMITS.maxSize / 1024 / 1024).toFixed(1)}MB`
+      };
+    }
+
+    // Verificar extensão do arquivo
+    const fileExt = `.${file.name.split('.').pop()?.toLowerCase()}`;
+    if (!FILE_LIMITS.allowedExtensions.includes(fileExt)) {
+      return {
+        isValid: false,
+        error: `Tipo de arquivo não permitido. Apenas ${FILE_LIMITS.allowedExtensions.join(', ')} são aceitos`
+      };
+    }
+
+    // Verificar tipo MIME
+    const allowedMimeTypes = Object.keys(FILE_LIMITS.allowedTypes);
+    if (!allowedMimeTypes.includes(file.type)) {
+      return {
+        isValid: false,
+        error: `Tipo MIME não permitido: ${file.type}. Apenas arquivos TXT e PDF são aceitos`
+      };
+    }
+
+    // Verificação dupla: tipo MIME vs extensão
+    const expectedExtensions = FILE_LIMITS.allowedTypes[file.type as keyof typeof FILE_LIMITS.allowedTypes];
+    if (!expectedExtensions || !expectedExtensions.includes(fileExt)) {
+      return {
+        isValid: false,
+        error: `Inconsistência entre tipo de arquivo e extensão. Verifique se o arquivo não foi renomeado`
+      };
+    }
+
+    return { isValid: true };
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
 
-      // Verificar extensão do arquivo
-      const allowedExtensions = ['.txt', '.pdf'];
-      const fileExt = file.name.split('.').pop()?.toLowerCase();
-
-      if (!fileExt || !allowedExtensions.includes(`.${fileExt}`)) {
-        toast.error("Tipo de arquivo não permitido", {
-          description: "Apenas arquivos .txt ou .pdf são aceitos"
+      // Validar arquivo
+      const validation = validateFile(file);
+      if (!validation.isValid) {
+        toast.error("Arquivo inválido", {
+          description: validation.error
         });
+
+        // Limpar o input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
         return;
       }
 
       setFormData((prev) => ({ ...prev, file }));
-      toast.info(`Arquivo selecionado: ${file.name}`, {
-        description: `Tamanho: ${(file.size / 1024).toFixed(2)} KB`
+      toast.success(`Arquivo válido selecionado: ${file.name}`, {
+        description: `Tamanho: ${(file.size / 1024).toFixed(2)} KB | Tipo: ${file.type}`
       });
     }
   };
@@ -128,6 +180,17 @@ export default function EmailSubmissionForm() {
         return;
       }
 
+      // Validação adicional do arquivo no submit
+      if (inputMethod === "file" && formData.file) {
+        const validation = validateFile(formData.file);
+        if (!validation.isValid) {
+          toast.error("Arquivo inválido", {
+            description: validation.error
+          });
+          return;
+        }
+      }
+
       setLoading(true);
       setProcessingStatus({
         status: "iniciando",
@@ -152,13 +215,11 @@ export default function EmailSubmissionForm() {
       data.append("use_file_sender", formData.use_file_sender ? "true" : "false");
 
       if (formData.file) {
-        // Verificar extensão do arquivo
-        const allowedExtensions = ['.txt', '.pdf'];
-        const fileExt = formData.file.name.split('.').pop()?.toLowerCase();
-
-        if (!fileExt || !allowedExtensions.includes(`.${fileExt}`)) {
-          toast.error("Tipo de arquivo não permitido", {
-            description: "Apenas arquivos .txt ou .pdf são aceitos"
+        // Validação final antes do envio
+        const validation = validateFile(formData.file);
+        if (!validation.isValid) {
+          toast.error("Arquivo inválido", {
+            description: validation.error
           });
           setLoading(false);
           setProcessingStatus(null);
@@ -393,13 +454,15 @@ export default function EmailSubmissionForm() {
           ) : (
             <div className="space-y-4">
               <div>
-                <Label htmlFor="file-input">Arquivo (.txt, .pdf)</Label>
+                <Label htmlFor="file-input">
+                  Arquivo (.txt, .pdf) - Máximo {(FILE_LIMITS.maxSize / 1024 / 1024).toFixed(1)}MB
+                </Label>
                 <div className="mt-1 border-2 border-dashed border-muted rounded-md p-4">
                   <Input
                     id="file-input"
                     ref={fileInputRef}
                     type="file"
-                    accept=".txt,.pdf"
+                    accept={FILE_LIMITS.allowedExtensions.join(',')}
                     onChange={handleFileChange}
                     className="hidden"
                   />
@@ -408,7 +471,12 @@ export default function EmailSubmissionForm() {
                     <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
                       <div className="flex items-center space-x-2">
                         <File className="h-5 w-5 text-blue-500" />
-                        <span className="text-sm">{formData.file.name}</span>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{formData.file.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {(formData.file.size / 1024).toFixed(2)} KB • {formData.file.type}
+                          </span>
+                        </div>
                       </div>
                       <Button
                         type="button"
@@ -427,8 +495,11 @@ export default function EmailSubmissionForm() {
                       className="w-full cursor-pointer flex flex-col items-center justify-center space-y-2 p-4 hover:bg-muted/50 rounded-md transition-colors"
                     >
                       <UploadCloud className="h-10 w-10 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-sm text-muted-foreground font-medium">
                         Clique para selecionar um arquivo
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Apenas .txt e .pdf • Máximo {(FILE_LIMITS.maxSize / 1024 / 1024).toFixed(1)}MB
                       </span>
                     </button>
                   )}

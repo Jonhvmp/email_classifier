@@ -22,10 +22,20 @@ export default function HomePage() {
               <h2 className="text-xl font-semibold mb-2">
                 Submeta um email para classificação
               </h2>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground mb-3">
                 Insira o conteúdo do email ou faça upload de um arquivo para classificação
                 automática entre produtivo e improdutivo.
               </p>
+              <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-md p-3">
+                <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
+                  Limites de Upload:
+                </h3>
+                <ul className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                  <li>• Tipos aceitos: .txt, .pdf</li>
+                  <li>• Tamanho máximo: 5MB</li>
+                  <li>• Texto direto: máximo 2.000 caracteres</li>
+                </ul>
+              </div>
             </div>
             <EmailSubmissionForm />
           </div>
