@@ -22,7 +22,6 @@ interface Email {
   created_at: string;
   confidence_score: number;
   content?: string;
-  suggested_response?: string;
 }
 
 interface EmailListProps {

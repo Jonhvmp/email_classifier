@@ -1,32 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Clock, AlertCircle, Layers } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { API_URLS } from "@/lib/api-helpers";
+import { Activity, Clock, Calendar } from "lucide-react";
 
-interface ActiveJob {
-  id: string;
-  job_type: string;
-  status: string;
-  created_at: string;
-  started_at?: string | null;
-  completed_at?: string | null;
-}
-
-interface QueuedJob {
-  id: string;
-  job_type: string;
-  status: string;
-  position_in_queue: number;
-  estimated_wait_time: number | null;
-  created_at: string;
-}
-
-interface ApiUsageStats {
+interface UsageStats {
   gemini_api: {
     minute_usage: number;
     minute_limit: number;
@@ -34,60 +15,52 @@ interface ApiUsageStats {
     day_usage: number;
     day_limit: number;
     day_percent: number;
-    total_today: number;
   };
   job_queue: {
     queue_length: number;
-    active_job: ActiveJob | null;
-    estimated_wait: number;
-    queued_jobs: QueuedJob[];
     processing_count: number;
   };
-  timestamp: string;
 }
 
 export function ApiUsageMonitor() {
-  const [usageStats, setUsageStats] = useState<ApiUsageStats | null>(null);
+  const [stats, setStats] = useState<UsageStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function fetchApiUsage() {
-    try {
-      setLoading(true);
-
-      const response = await fetch(API_URLS.API_USAGE);
-
-      if (!response.ok) {
-        throw new Error(`Falha ao obter estatísticas de uso: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setUsageStats(data);
-      setError(null);
-
-    } catch (error) {
-      console.error("Erro ao carregar estatísticas de uso da API:", error);
-      setError(error instanceof Error ? error.message : "Erro desconhecido");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    fetchApiUsage();
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(API_URLS.USAGE);
+        if (!response.ok) throw new Error("Falha ao buscar estatísticas");
+        const data = await response.json();
+        setStats(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erro desconhecido");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    // Atualizar a cada 5 segundos
-    const interval = setInterval(fetchApiUsage, 5000);
+    fetchStats();
+    const interval = setInterval(fetchStats, 5000); // Atualizar a cada 5 segundos
+
     return () => clearInterval(interval);
   }, []);
 
-  if (loading && !usageStats) {
+  if (loading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Uso da API & Fila</CardTitle>
-          <CardDescription>Carregando estatísticas...</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            Uso da API
+          </CardTitle>
         </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-3/4" />
+        </CardContent>
       </Card>
     );
   }
@@ -96,118 +69,59 @@ export function ApiUsageMonitor() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Uso da API & Fila</CardTitle>
-          <CardDescription>Estatísticas não disponíveis</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            Uso da API
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Erro</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+          <span className="text-red-600 text-sm">Erro: {error}</span>
         </CardContent>
       </Card>
     );
   }
 
-  if (!usageStats) {
-    return null;
-  }
-
-  const { gemini_api, job_queue } = usageStats;
-  const isMinuteHigh = gemini_api.minute_percent > 80;
-  const isDayHigh = gemini_api.day_percent > 80;
-  const hasQueue = job_queue.queue_length > 0;
-
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Status do Sistema</CardTitle>
-        <CardDescription>Métricas de utilização e fila</CardDescription>
+        <CardTitle className="flex items-center gap-2">
+          <Activity className="h-5 w-5" />
+          Uso da API
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <div className="flex justify-between items-center mb-1">
-            <span className="text-sm font-medium">Taxa por minuto</span>
-            <span className="text-sm font-medium">
-              {gemini_api.minute_usage}/{gemini_api.minute_limit}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              <span className="text-sm">Por Minuto</span>
+            </div>
+            <span className="text-sm font-mono">
+              {stats?.gemini_api.minute_usage}/{stats?.gemini_api.minute_limit}
             </span>
           </div>
-          <Progress
-            value={gemini_api.minute_percent}
-            className={isMinuteHigh ? "bg-amber-100" : ""}
-          />
+          <Progress value={stats?.gemini_api.minute_percent || 0} className="h-2" />
         </div>
 
         <div>
-          <div className="flex justify-between items-center mb-1">
-            <span className="text-sm font-medium">Uso diário</span>
-            <span className="text-sm font-medium">
-              {gemini_api.day_usage}/{gemini_api.day_limit}
-            </span>
-          </div>
-          <Progress
-            value={gemini_api.day_percent}
-            className={isDayHigh ? "bg-amber-100" : ""}
-          />
-        </div>
-
-        <div className="pt-2 border-t">
-          <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
-            <Layers className="h-4 w-4" />
-            Status da Fila
-            {job_queue.queue_length > 0 && (
-              <Badge variant="secondary" className="ml-2 text-xs">
-                {job_queue.queue_length} na fila
-              </Badge>
-            )}
-          </h4>
-          <div className="flex justify-between items-center">
-            <span className="text-sm">Tamanho da fila:</span>
-            <span className="text-sm font-medium">{job_queue.queue_length}</span>
-          </div>
-          <div className="flex justify-between items-center mt-1">
-            <span className="text-sm">Tempo estimado de espera:</span>
-            <span className="text-sm font-medium">
-              {job_queue.estimated_wait > 0 ? `${job_queue.estimated_wait}s` : 'Imediato'}
-            </span>
-          </div>
-          <div className="flex justify-between items-center mt-1">
-            <span className="text-sm">Jobs em processamento:</span>
-            <span className="text-sm font-medium">{job_queue.processing_count}</span>
-          </div>
-
-          {job_queue.active_job && (
-            <div className="mt-2 bg-muted/50 p-2 rounded text-xs">
-              <p className="font-medium">Job ativo: {job_queue.active_job.job_type}</p>
-              <p className="text-muted-foreground truncate">ID: {job_queue.active_job.id}</p>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              <span className="text-sm">Por Dia</span>
             </div>
-          )}
+            <span className="text-sm font-mono">
+              {stats?.gemini_api.day_usage}/{stats?.gemini_api.day_limit}
+            </span>
+          </div>
+          <Progress value={stats?.gemini_api.day_percent || 0} className="h-2" />
         </div>
 
-        {(isMinuteHigh || isDayHigh) && (
-          <Alert variant="destructive" className="bg-amber-50 border-amber-200 text-amber-800 mt-2">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Alto uso da API</AlertTitle>
-            <AlertDescription>
-              A API Gemini está com uso elevado. Algumas requisições podem demorar mais.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {hasQueue && (
-          <Alert variant="default" className="bg-blue-50 border-blue-200 text-blue-800 mt-2">
-            <Clock className="h-4 w-4" />
-            <AlertTitle>Fila de processamento ativa</AlertTitle>
-            <AlertDescription>
-              Há {job_queue.queue_length} requisições na fila. O tempo estimado de espera é de {job_queue.estimated_wait} segundos.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <p className="text-xs text-muted-foreground mt-2">
-          Total de requisições hoje: {gemini_api.total_today}
-        </p>
+        <div className="flex items-center justify-between pt-2 border-t">
+          <span className="text-sm">Fila de Processamento:</span>
+          <span className="text-sm font-mono">
+            {stats?.job_queue.queue_length || 0} jobs
+          </span>
+        </div>
       </CardContent>
     </Card>
   );

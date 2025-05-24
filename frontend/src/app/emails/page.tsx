@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import EmailsPageClient from "@/components/emails-page-client";
+import { EmailsPageClient } from "@/components/emails-page-client";
 
 export const metadata: Metadata = {
   title: "Emails Classificados | Classificador de Emails",

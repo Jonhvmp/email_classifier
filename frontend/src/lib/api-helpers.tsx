@@ -1,13 +1,13 @@
 // API URLs
-const API_BASE = process.env.NEXT_PUBLIC_API_BACKEND || '';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://email-classifier-ahag.onrender.com';
 
 export const API_URLS = {
-  EMAILS_LIST: `${API_BASE}/api/emails/`,
-  EMAIL_DETAIL: (id: string) => `${API_BASE}/api/emails/${id}/`,
-  SUBMIT_EMAIL: `${API_BASE}/api/submit-email/`,
-  API_STATUS: `${API_BASE}/api/status/`,
-  API_USAGE: `${API_BASE}/api/usage/`,
-  JOB_STATUS: (jobId: string) => `${API_BASE}/api/jobs/${jobId}/`,
+  STATUS: `${API_BASE_URL}/api/status/`,
+  USAGE: `${API_BASE_URL}/api/usage/`,
+  SUBMIT_EMAIL: `${API_BASE_URL}/api/submit-email/`,
+  EMAILS_LIST: `${API_BASE_URL}/api/emails/`,
+  EMAIL_DETAIL: (id: string) => `${API_BASE_URL}/api/emails/${id}/`,
+  JOB_STATUS: (jobId: string) => `${API_BASE_URL}/api/jobs/${jobId}/`,
 };
 
 // Tipos
@@ -146,4 +146,21 @@ export async function submitEmailAndWait(
 
   // Se chegamos aqui, atingimos o número máximo de tentativas
   throw new Error(`Tempo limite excedido após ${maxAttempts} tentativas`);
+}
+
+export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 10000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
 }
