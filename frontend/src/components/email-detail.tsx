@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -24,7 +25,9 @@ import {
   User,
   Calendar,
   MessageSquare,
-  Reply
+  Reply,
+  Shield,
+  Clock
 } from "lucide-react";
 
 interface Email {
@@ -49,7 +52,7 @@ export function EmailDetail({ id }: EmailDetailProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const [activeTab, setActiveTab] = useState("content");
+  // const [activeTab, setActiveTab] = useState("content");
 
   const fetchEmailDetails = useCallback(async () => {
     try {
@@ -145,24 +148,49 @@ export function EmailDetail({ id }: EmailDetailProps) {
 
   if (loading && !email) {
     return (
-      <div className="container mx-auto px-4 py-4 sm:py-8">
-        <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
-          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-            <Skeleton className="h-8 w-8 sm:h-10 sm:w-10" />
-            <Skeleton className="h-6 sm:h-8 w-32 sm:w-48" />
-          </div>
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+          <div className="max-w-5xl mx-auto space-y-6">
+            {/* Header Skeleton */}
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-9 w-9" />
+                <Skeleton className="h-7 w-48" />
+              </div>
+              <div className="flex gap-2">
+                <Skeleton className="h-9 w-24" />
+                <Skeleton className="h-9 w-28" />
+              </div>
+            </div>
 
-          <Card>
-            <CardHeader>
-              <Skeleton className="h-6 w-full sm:w-3/4" />
-              <Skeleton className="h-4 w-full sm:w-1/2" />
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-full sm:w-3/4" />
-            </CardContent>
-          </Card>
+            {/* Content Skeleton */}
+            <Card className="shadow-sm">
+              <CardHeader className="space-y-4">
+                <div className="space-y-3">
+                  <Skeleton className="h-6 w-full max-w-2xl" />
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 w-48" />
+                    <Skeleton className="h-4 w-28" />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-6 w-24" />
+                  <Skeleton className="h-4 w-12" />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Skeleton className="h-10 w-full max-w-xs" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     );
@@ -170,26 +198,27 @@ export function EmailDetail({ id }: EmailDetailProps) {
 
   if (error && !email) {
     return (
-      <div className="container mx-auto px-4 py-4 sm:py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.back()}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Voltar
-            </Button>
-          </div>
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+          <div className="max-w-5xl mx-auto">
+            <div className="mb-6">
+              <Button
+                variant="ghost"
+                onClick={() => router.back()}
+                className="gap-2 hover:bg-muted/80"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Voltar
+              </Button>
+            </div>
 
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              {error}
-            </AlertDescription>
-          </Alert>
+            <Alert variant="destructive" className="shadow-sm">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-sm leading-relaxed">
+                {error}
+              </AlertDescription>
+            </Alert>
+          </div>
         </div>
       </div>
     );
@@ -199,148 +228,219 @@ export function EmailDetail({ id }: EmailDetailProps) {
     return null;
   }
 
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case "productive":
+        return <CheckCircle2 className="w-3 h-3" />;
+      case "pending":
+        return <RefreshCw className="w-3 h-3 animate-spin" />;
+      default:
+        return <TrendingUp className="w-3 h-3" />;
+    }
+  };
+
+  const getCategoryVariant = (category: string) => {
+    switch (category) {
+      case "productive":
+        return "default";
+      case "pending":
+        return "secondary";
+      default:
+        return "outline";
+    }
+  };
+
   return (
-    <div className="container mx-auto px-4 py-4 sm:py-8">
-      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.back()}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Voltar</span>
-            </Button>
-            <h1 className="text-xl sm:text-2xl font-bold">Detalhes do Email</h1>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {isPending && (
-              <Badge variant="secondary" className="animate-pulse">
-                <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
-                <span className="hidden sm:inline">Processando...</span>
-                <span className="sm:hidden">Proc...</span>
-              </Badge>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={loading}
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''} ${!loading && 'mr-2'}`} />
-              <span className="hidden sm:inline">Atualizar</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* Email Details */}
-        <Card>
-          <CardHeader className="pb-2 sm:pb-4">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
-              <div className="space-y-1 sm:space-y-2 mb-2 sm:mb-0 flex-1">
-                <CardTitle className="text-lg sm:text-xl leading-tight line-clamp-2">
-                  {email.subject || "Sem assunto"}
-                </CardTitle>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <User className="h-3 w-3" />
-                    {extractNameFromEmail(email.sender)}
-                  </div>
-                  <div className="hidden sm:flex items-center gap-1">
-                    <Mail className="h-3 w-3" />
-                    {email.sender}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {formatDistanceToNow(new Date(email.created_at), {
-                      locale: ptBR,
-                      addSuffix: true,
-                    })}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge
-                  variant={email.category === "productive" ? "default" : "secondary"}
-                  className="text-xs h-6"
-                >
-                  {email.category === "productive" ? (
-                    <CheckCircle2 className="w-3 h-3 mr-1" />
-                  ) : (
-                    <TrendingUp className="w-3 h-3 mr-1" />
-                  )}
-                  {formatCategory(email.category)}
-                </Badge>
-                <span className="text-xs text-muted-foreground font-mono">
-                  {Math.round(email.confidence_score)}%
-                </span>
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="max-w-5xl mx-auto space-y-6">
+          {/* Header */}
+          <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => router.back()}
+                className="gap-2 hover:bg-muted/80 shrink-0"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span className="hidden sm:inline">Voltar</span>
+              </Button>
+              <div>
+                <h1 className="text-xl lg:text-2xl font-semibold tracking-tight">
+                  Detalhes do Email
+                </h1>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  ID #{id}
+                </p>
               </div>
             </div>
-          </CardHeader>
 
-          {/* Use tabs for content and response */}
-          <CardContent className="pt-2">
-            {email.category === 'pending' ? (
-              <Alert>
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                <AlertDescription>
-                  Este email ainda está sendo processado pela nossa IA.
-                  <span className="hidden sm:inline"> A página será atualizada automaticamente quando o processamento for concluído.</span>
-                  {retryCount > 0 && ` (${retryCount}/20)`}
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <Tabs
-                defaultValue="content"
-                value={activeTab}
-                onValueChange={setActiveTab}
-                className="w-full"
+            <div className="flex items-center gap-2">
+              {isPending && (
+                <Badge variant="secondary" className="animate-pulse gap-1.5">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  <span className="text-xs">Processando...</span>
+                </Badge>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={loading}
+                className="gap-2"
               >
-                <TabsList className="grid grid-cols-2 mb-4">
-                  <TabsTrigger value="content" className="flex items-center gap-1">
-                    <MessageSquare className="h-4 w-4" />
-                    <span>Conteúdo</span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="response"
-                    className="flex items-center gap-1"
-                    disabled={!email.suggested_response}
-                  >
-                    <Reply className="h-4 w-4" />
-                    <span>Resposta Sugerida</span>
-                  </TabsTrigger>
-                </TabsList>
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Atualizar</span>
+              </Button>
+            </div>
+          </header>
 
-                <TabsContent value="content" className="mt-0">
-                  <div className="whitespace-pre-wrap text-sm bg-muted/50 p-3 sm:p-4 rounded-md overflow-x-auto">
-                    {email.content}
-                  </div>
-                </TabsContent>
+          {/* Main Content */}
+          <main>
+            <Card className="shadow-sm border-border/50">
+              <CardHeader className="pb-4">
+                {/* Email Subject and Meta */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <CardTitle className="text-lg lg:text-xl leading-tight break-words">
+                      {email.subject || "Sem assunto"}
+                    </CardTitle>
 
-                <TabsContent value="response" className="mt-0">
-                  <div className="flex justify-end mb-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCopyResponse}
-                      className="flex items-center gap-2"
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copiar
-                    </Button>
+                    {/* Email Metadata */}
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 shrink-0" />
+                        <span className="truncate font-medium">
+                          {extractNameFromEmail(email.sender)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 shrink-0" />
+                        <span className="truncate">
+                          {email.sender}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-1">
+                        <Calendar className="h-4 w-4 shrink-0" />
+                        <span>
+                          {formatDistanceToNow(new Date(email.created_at), {
+                            locale: ptBR,
+                            addSuffix: true,
+                          })}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="whitespace-pre-wrap text-sm bg-blue-50 dark:bg-blue-950/20 p-3 sm:p-4 rounded-md border-l-4 border-blue-500 overflow-x-auto">
-                    {email.suggested_response}
+
+                  <Separator />
+
+                  {/* Category and Confidence */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Categoria:
+                        </span>
+                        <Badge
+                          variant={getCategoryVariant(email.category)}
+                          className="gap-1.5"
+                        >
+                          {getCategoryIcon(email.category)}
+                          {formatCategory(email.category)}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">
+                          Confiança:
+                        </span>
+                        <span className="text-sm font-mono font-medium">
+                          {Math.round(email.confidence_score)}%
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </TabsContent>
-              </Tabs>
-            )}
-          </CardContent>
-        </Card>
+                </div>
+              </CardHeader>
+
+              <CardContent className="pt-2">
+                {email.category === 'pending' ? (
+                  <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50">
+                    <Clock className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-amber-800 dark:text-amber-200">
+                      <div className="space-y-1">
+                        <p className="font-medium">Este email está sendo processado pela nossa IA.</p>
+                        <p className="text-sm">
+                          A página será atualizada automaticamente quando o processamento for concluído.
+                          {retryCount > 0 && ` (${retryCount}/20)`}
+                        </p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Tabs defaultValue="content" className="w-full">
+                    <TabsList className="grid grid-cols-2 h-auto p-1">
+                      <TabsTrigger value="content" className="gap-2 py-2.5">
+                        <MessageSquare className="h-4 w-4" />
+                        <span>Conteúdo</span>
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="response"
+                        className="gap-2 py-2.5"
+                        disabled={!email.suggested_response}
+                      >
+                        <Reply className="h-4 w-4" />
+                        <span>Resposta Sugerida</span>
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <div className="mt-6">
+                      <TabsContent value="content" className="mt-0">
+                        <div className="relative">
+                          <div className="prose prose-sm max-w-none dark:prose-invert">
+                            <div className="whitespace-pre-wrap bg-muted/40 p-4 lg:p-6 rounded-lg border text-sm leading-relaxed overflow-x-auto">
+                              {email.content}
+                            </div>
+                          </div>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="response" className="mt-0">
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <h3 className="text-sm font-medium text-muted-foreground">
+                              Resposta sugerida pela IA
+                            </h3>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleCopyResponse}
+                              className="gap-2"
+                            >
+                              <Copy className="h-4 w-4" />
+                              Copiar
+                            </Button>
+                          </div>
+
+                          <div className="relative">
+                            <div className="prose prose-sm max-w-none dark:prose-invert">
+                              <div className="whitespace-pre-wrap bg-blue-50 dark:bg-blue-950/20 p-4 lg:p-6 rounded-lg border border-blue-200 dark:border-blue-800 text-sm leading-relaxed overflow-x-auto">
+                                {email.suggested_response}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </TabsContent>
+                    </div>
+                  </Tabs>
+                )}
+              </CardContent>
+            </Card>
+          </main>
+        </div>
       </div>
     </div>
   );
