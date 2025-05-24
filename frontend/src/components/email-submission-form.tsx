@@ -10,9 +10,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { UploadCloud, Loader2, File, X, Clock } from "lucide-react";
+import { UploadCloud, Loader2, File, X, Clock, AlertTriangle } from "lucide-react";
 import { submitEmailAndWait, JobStatus } from "@/lib/api-helpers";
 import { QueueStatusDialog } from "./queue-status-dialog";
+
+const CHAR_LIMITS = {
+  sender: 50,
+  subject: 200,
+  content: 5000,
+};
 
 export default function EmailSubmissionForm() {
   const router = useRouter();
@@ -36,9 +42,31 @@ export default function EmailSubmissionForm() {
     use_file_sender: true,
   });
 
+  // Estados para controle de limites de caracteres
+  const [charCounts, setCharCounts] = useState({
+    sender: 0,
+    subject: 0,
+    content: 0,
+  });
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+
+    // Verificar limite de caracteres
+    const limit = CHAR_LIMITS[name as keyof typeof CHAR_LIMITS];
+    if (limit && value.length > limit) {
+      toast.error(`Campo ${name === 'sender' ? 'remetente' : name === 'subject' ? 'assunto' : 'conteúdo'} excede o limite`, {
+        description: `Máximo de ${limit} caracteres permitidos`
+      });
+      return;
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Atualizar contagem de caracteres
+    if (limit) {
+      setCharCounts((prev) => ({ ...prev, [name]: value.length }));
+    }
   };
 
   const handleCheckboxChange = (name: string, checked: boolean) => {
@@ -252,6 +280,22 @@ export default function EmailSubmissionForm() {
     fileInputRef.current?.click();
   };
 
+  const getCharCountColor = (field: keyof typeof CHAR_LIMITS) => {
+    const count = charCounts[field];
+    const limit = CHAR_LIMITS[field];
+    const percentage = (count / limit) * 100;
+
+    if (percentage >= 100) return "text-red-500";
+    if (percentage >= 80) return "text-amber-500";
+    return "text-muted-foreground";
+  };
+
+  const isNearLimit = (field: keyof typeof CHAR_LIMITS) => {
+    const count = charCounts[field];
+    const limit = CHAR_LIMITS[field];
+    return (count / limit) >= 0.8;
+  };
+
   return (
     <>
       <div className="flex justify-end mb-4">
@@ -279,7 +323,17 @@ export default function EmailSubmissionForm() {
           </div>
 
           <div>
-            <Label htmlFor="sender">Remetente</Label>
+            <div className="flex justify-between items-center mb-1">
+              <Label htmlFor="sender">Remetente</Label>
+              <div className="flex items-center gap-1">
+                {isNearLimit('sender') && (
+                  <AlertTriangle className="h-3 w-3 text-amber-500" />
+                )}
+                <span className={`text-xs ${getCharCountColor('sender')}`}>
+                  {charCounts.sender}/{CHAR_LIMITS.sender}
+                </span>
+              </div>
+            </div>
             <Input
               id="sender"
               name="sender"
@@ -292,7 +346,17 @@ export default function EmailSubmissionForm() {
           </div>
 
           <div>
-            <Label htmlFor="subject">Assunto</Label>
+            <div className="flex justify-between items-center mb-1">
+              <Label htmlFor="subject">Assunto</Label>
+              <div className="flex items-center gap-1">
+                {isNearLimit('subject') && (
+                  <AlertTriangle className="h-3 w-3 text-amber-500" />
+                )}
+                <span className={`text-xs ${getCharCountColor('subject')}`}>
+                  {charCounts.subject}/{CHAR_LIMITS.subject}
+                </span>
+              </div>
+            </div>
             <Input
               id="subject"
               name="subject"
@@ -305,7 +369,17 @@ export default function EmailSubmissionForm() {
 
           {inputMethod === "text" ? (
             <div>
-              <Label htmlFor="content">Conteúdo</Label>
+              <div className="flex justify-between items-center mb-1">
+                <Label htmlFor="content">Conteúdo</Label>
+                <div className="flex items-center gap-1">
+                  {isNearLimit('content') && (
+                    <AlertTriangle className="h-3 w-3 text-amber-500" />
+                  )}
+                  <span className={`text-xs ${getCharCountColor('content')}`}>
+                    {charCounts.content}/{CHAR_LIMITS.content}
+                  </span>
+                </div>
+              </div>
               <Textarea
                 id="content"
                 name="content"
