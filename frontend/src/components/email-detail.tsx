@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -21,7 +22,9 @@ import {
   RefreshCw,
   Copy,
   User,
-  Calendar
+  Calendar,
+  MessageSquare,
+  Reply
 } from "lucide-react";
 
 interface Email {
@@ -46,6 +49,7 @@ export function EmailDetail({ id }: EmailDetailProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [activeTab, setActiveTab] = useState("content");
 
   const fetchEmailDetails = useCallback(async () => {
     try {
@@ -141,22 +145,22 @@ export function EmailDetail({ id }: EmailDetailProps) {
 
   if (loading && !email) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <div className="flex items-center gap-4">
-            <Skeleton className="h-10 w-10" />
-            <Skeleton className="h-8 w-48" />
+      <div className="container mx-auto px-4 py-4 sm:py-8">
+        <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+            <Skeleton className="h-8 w-8 sm:h-10 sm:w-10" />
+            <Skeleton className="h-6 sm:h-8 w-32 sm:w-48" />
           </div>
 
           <Card>
             <CardHeader>
-              <Skeleton className="h-6 w-3/4" />
-              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-6 w-full sm:w-3/4" />
+              <Skeleton className="h-4 w-full sm:w-1/2" />
             </CardHeader>
             <CardContent className="space-y-4">
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-full sm:w-3/4" />
             </CardContent>
           </Card>
         </div>
@@ -166,9 +170,9 @@ export function EmailDetail({ id }: EmailDetailProps) {
 
   if (error && !email) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-4 sm:py-8">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center gap-4 mb-6">
+          <div className="flex items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
             <Button
               variant="ghost"
               size="sm"
@@ -196,11 +200,11 @@ export function EmailDetail({ id }: EmailDetailProps) {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="container mx-auto px-4 py-4 sm:py-8">
+      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2 sm:gap-4">
             <Button
               variant="ghost"
               size="sm"
@@ -208,16 +212,17 @@ export function EmailDetail({ id }: EmailDetailProps) {
               className="flex items-center gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
-              Voltar
+              <span className="hidden sm:inline">Voltar</span>
             </Button>
-            <h1 className="text-2xl font-bold">Detalhes do Email</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Detalhes do Email</h1>
           </div>
 
           <div className="flex items-center gap-2">
             {isPending && (
               <Badge variant="secondary" className="animate-pulse">
                 <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
-                Processando...
+                <span className="hidden sm:inline">Processando...</span>
+                <span className="sm:hidden">Proc...</span>
               </Badge>
             )}
             <Button
@@ -226,26 +231,26 @@ export function EmailDetail({ id }: EmailDetailProps) {
               onClick={handleRefresh}
               disabled={loading}
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Atualizar
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''} ${!loading && 'mr-2'}`} />
+              <span className="hidden sm:inline">Atualizar</span>
             </Button>
           </div>
         </div>
 
         {/* Email Details */}
         <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div className="space-y-2 flex-1">
-                <CardTitle className="text-xl leading-tight">
+          <CardHeader className="pb-2 sm:pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1 sm:space-y-2 mb-2 sm:mb-0 flex-1">
+                <CardTitle className="text-lg sm:text-xl leading-tight line-clamp-2">
                   {email.subject || "Sem assunto"}
                 </CardTitle>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <User className="h-3 w-3" />
                     {extractNameFromEmail(email.sender)}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="hidden sm:flex items-center gap-1">
                     <Mail className="h-3 w-3" />
                     {email.sender}
                   </div>
@@ -258,10 +263,10 @@ export function EmailDetail({ id }: EmailDetailProps) {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 ml-4">
+              <div className="flex items-center gap-2">
                 <Badge
                   variant={email.category === "productive" ? "default" : "secondary"}
-                  className="text-xs"
+                  className="text-xs h-6"
                 >
                   {email.category === "productive" ? (
                     <CheckCircle2 className="w-3 h-3 mr-1" />
@@ -276,53 +281,66 @@ export function EmailDetail({ id }: EmailDetailProps) {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="prose max-w-none">
-              <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                Conteúdo do Email:
-              </h4>
-              <div className="whitespace-pre-wrap text-sm bg-muted/50 p-4 rounded-md">
-                {email.content}
-              </div>
-            </div>
+
+          {/* Use tabs for content and response */}
+          <CardContent className="pt-2">
+            {email.category === 'pending' ? (
+              <Alert>
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <AlertDescription>
+                  Este email ainda está sendo processado pela nossa IA.
+                  <span className="hidden sm:inline"> A página será atualizada automaticamente quando o processamento for concluído.</span>
+                  {retryCount > 0 && ` (${retryCount}/20)`}
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Tabs
+                defaultValue="content"
+                value={activeTab}
+                onValueChange={setActiveTab}
+                className="w-full"
+              >
+                <TabsList className="grid grid-cols-2 mb-4">
+                  <TabsTrigger value="content" className="flex items-center gap-1">
+                    <MessageSquare className="h-4 w-4" />
+                    <span>Conteúdo</span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="response"
+                    className="flex items-center gap-1"
+                    disabled={!email.suggested_response}
+                  >
+                    <Reply className="h-4 w-4" />
+                    <span>Resposta Sugerida</span>
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="content" className="mt-0">
+                  <div className="whitespace-pre-wrap text-sm bg-muted/50 p-3 sm:p-4 rounded-md overflow-x-auto">
+                    {email.content}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="response" className="mt-0">
+                  <div className="flex justify-end mb-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyResponse}
+                      className="flex items-center gap-2"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copiar
+                    </Button>
+                  </div>
+                  <div className="whitespace-pre-wrap text-sm bg-blue-50 dark:bg-blue-950/20 p-3 sm:p-4 rounded-md border-l-4 border-blue-500 overflow-x-auto">
+                    {email.suggested_response}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            )}
           </CardContent>
         </Card>
-
-        {/* Suggested Response */}
-        {email.suggested_response && email.category !== 'pending' && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Resposta Sugerida</CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCopyResponse}
-                  className="flex items-center gap-2"
-                >
-                  <Copy className="h-4 w-4" />
-                  Copiar
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="whitespace-pre-wrap text-sm bg-blue-50 dark:bg-blue-950/20 p-4 rounded-md border-l-4 border-blue-500">
-                {email.suggested_response}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Processing Status */}
-        {email.category === 'pending' && (
-          <Alert>
-            <RefreshCw className="h-4 w-4 animate-spin" />
-            <AlertDescription>
-              Este email ainda está sendo processado pela nossa IA. A página será atualizada automaticamente quando o processamento for concluído.
-              {retryCount > 0 && ` (Tentativa ${retryCount}/20)`}
-            </AlertDescription>
-          </Alert>
-        )}
       </div>
     </div>
   );
