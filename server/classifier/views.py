@@ -18,13 +18,41 @@ from .job_queue import JobStatus
 logger = logging.getLogger(__name__)
 
 def get_client_ip(request):
-    """Obtém o IP real do cliente"""
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0].strip()
-    else:
-        ip = request.META.get('REMOTE_ADDR')
-    return ip
+    """Obtém o IP real do cliente de forma mais robusta"""
+    ip_headers = [
+        'HTTP_X_FORWARDED_FOR',
+        'HTTP_X_REAL_IP',
+        'HTTP_CF_CONNECTING_IP',  # Cloudflare
+        'HTTP_X_FORWARDED',
+        'HTTP_FORWARDED_FOR',
+        'HTTP_FORWARDED',
+        'REMOTE_ADDR'
+    ]
+
+    for header in ip_headers:
+        ip = request.META.get(header)
+        if ip:
+            # Se for X_FORWARDED_FOR, pegar o primeiro IP da lista
+            if header == 'HTTP_X_FORWARDED_FOR':
+                ip = ip.split(',')[0].strip()
+
+            # Validar se é um IP válido
+            if _is_valid_ip(ip):
+                logger.debug(f"IP obtido via {header}: {ip}")
+                return ip
+
+    # Fallback para IP padrão se nenhum foi encontrado
+    logger.warning("Nenhum IP válido encontrado, usando IP padrão")
+    return '127.0.0.1'
+
+def _is_valid_ip(ip):
+    """Valida se é um IP válido"""
+    import ipaddress
+    try:
+        ipaddress.ip_address(ip)
+        return ip not in ['127.0.0.1', '::1', 'localhost']  # Excluir IPs locais quando possível
+    except ValueError:
+        return False
 
 def home(request):
     """
@@ -540,11 +568,30 @@ def api_emails_list(request):
         user_ip = get_client_ip(request)
         logger.info(f"Listando emails para IP: {user_ip}")
 
+        # Log de debug dos headers da requisição para diagnóstico
+        forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR', 'N/A')
+        real_ip = request.META.get('HTTP_X_REAL_IP', 'N/A')
+        remote_addr = request.META.get('REMOTE_ADDR', 'N/A')
+        logger.debug(f"Debug IPs - X_FORWARDED_FOR: {forwarded_for}, X_REAL_IP: {real_ip}, REMOTE_ADDR: {remote_addr}")
+
         # Verificar se há emails para este IP
         total_emails = Email.objects.filter(user_ip=user_ip).count()
         logger.info(f"Total de emails encontrados para IP {user_ip}: {total_emails}")
 
-        emails = Email.objects.filter(user_ip=user_ip).order_by('-created_at')
+        # Se não encontrar emails com o IP atual, verificar se existem emails sem IP definido
+        if total_emails == 0:
+            emails_without_ip = Email.objects.filter(user_ip__isnull=True).count()
+            emails_with_default_ip = Email.objects.filter(user_ip='127.0.0.1').count()
+            logger.info(f"Emails sem IP: {emails_without_ip}, Emails com IP padrão: {emails_with_default_ip}")
+
+            # Se existem emails com IP padrão e o usuário está usando IP padrão, mostrar esses emails
+            if user_ip == '127.0.0.1' and emails_with_default_ip > 0:
+                emails = Email.objects.filter(user_ip='127.0.0.1').order_by('-created_at')
+                logger.info(f"Exibindo {emails_with_default_ip} emails com IP padrão")
+            else:
+                emails = Email.objects.none()
+        else:
+            emails = Email.objects.filter(user_ip=user_ip).order_by('-created_at')
 
         data = []
         for email in emails:
@@ -575,7 +622,16 @@ def api_emails_list(request):
             'emails': data,
             'count': len(data),
             'user_ip': user_ip,
-            'success': True
+            'success': True,
+            'debug_info': {
+                'total_found': len(data),
+                'user_ip_used': user_ip,
+                'headers_checked': {
+                    'x_forwarded_for': forwarded_for,
+                    'x_real_ip': real_ip,
+                    'remote_addr': remote_addr
+                }
+            }
         }
 
         logger.info(f"Retornando {len(data)} emails para IP {user_ip}")

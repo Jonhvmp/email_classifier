@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,8 @@ interface EmailListProps {
   currentPage?: number;
   emailsPerPage?: number;
   onTotalEmailsChange?: (total: number) => void;
-  emails: Email[];
+  onEmailsLoaded?: (emails: Email[]) => void;
+  emails?: Email[];
 }
 
 export default function EmailList({
@@ -39,36 +40,71 @@ export default function EmailList({
   currentPage = 1,
   emailsPerPage = 10,
   onTotalEmailsChange,
-  emails
+  onEmailsLoaded,
+  emails: externalEmails = []
 }: EmailListProps) {
+  const [internalEmails, setInternalEmails] = useState<Email[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const emails = externalEmails.length > 0 ? externalEmails : internalEmails;
+
+  const fetchEmails = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log(`Buscando emails em: ${API_URLS.EMAILS_LIST}`);
+
+      const response = await fetch(API_URLS.EMAILS_LIST, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`Resposta da API:`, data);
+
+      // Verificar se a resposta tem a estrutura esperada
+      if (!data.success) {
+        throw new Error(data.error || 'Erro na resposta da API');
+      }
+
+      const emailsArray = data.emails || [];
+      console.log(`${emailsArray.length} emails recebidos do servidor`);
+
+      setInternalEmails(emailsArray);
+
+      // Notificar o componente pai sobre os emails carregados
+      if (onEmailsLoaded) {
+        onEmailsLoaded(emailsArray);
+      }
+
+    } catch (error) {
+      console.error("Erro ao carregar emails:", error);
+      setError(error instanceof Error ? error.message : 'Erro desconhecido');
+      toast.error("Erro ao carregar a lista de emails", {
+        description: "Não foi possível obter a lista de emails do servidor.",
+      });
+      setInternalEmails([]); // Garantir que emails seja um array vazio em caso de erro
+    } finally {
+      setLoading(false);
+    }
+  }, [onEmailsLoaded]);
 
   useEffect(() => {
-    async function fetchEmails() {
-      try {
-        console.log(`Buscando emails em: ${API_URLS.EMAILS_LIST}`);
-
-        const response = await fetch(API_URLS.EMAILS_LIST);
-
-        if (!response.ok) {
-          throw new Error("Falha ao buscar emails");
-        }
-
-        const data = await response.json();
-        console.log(`${data.length} emails recebidos do servidor`);
-        // setEmails(data);
-      } catch (error) {
-        console.error("Erro ao carregar emails:", error);
-        toast.error("Erro ao carregar a lista de emails", {
-          description: "Não foi possível obter a lista de emails do servidor.",
-        });
-      } finally {
-        setLoading(false);
-      }
+    // Só fazer fetch se não temos emails externos
+    if (externalEmails.length === 0) {
+      fetchEmails();
+    } else {
+      // Se temos emails externos, não precisamos carregar
+      setLoading(false);
     }
-
-    fetchEmails();
-  }, []);
+  }, [externalEmails.length, fetchEmails]);
 
   // Filtrar emails baseado na busca e categorias selecionadas
   const filteredEmails = useMemo(() => {
@@ -123,6 +159,24 @@ export default function EmailList({
             </CardContent>
           </Card>
         ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-16">
+        <div className="mx-auto w-24 h-24 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-6">
+          <AlertTriangle className="h-12 w-12 text-red-500" />
+        </div>
+        <h3 className="text-xl font-semibold mb-2">Erro ao carregar emails</h3>
+        <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+          {error}
+        </p>
+        <Button onClick={() => window.location.reload()} className="gap-2">
+          <ArrowRight className="h-4 w-4" />
+          Tentar novamente
+        </Button>
       </div>
     );
   }

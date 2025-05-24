@@ -24,12 +24,23 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
+interface Email {
+  id: number;
+  subject: string;
+  sender: string;
+  category: string;
+  created_at: string;
+  confidence_score: number;
+  content?: string;
+}
+
 export function EmailsPageClient() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalEmails, setTotalEmails] = useState(0);
   const [emailsPerPage] = useState(10);
+  const [allEmails, setAllEmails] = useState<Email[]>([]);
 
   const categories = [
     { value: "productive", label: "Produtivo" },
@@ -54,6 +65,10 @@ export function EmailsPageClient() {
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
     setCurrentPage(1);
+  };
+
+  const handleEmailsLoaded = (emails: Email[]) => {
+    setAllEmails(emails);
   };
 
   const hasActiveFilters = searchTerm || selectedCategories.length > 0;
@@ -238,7 +253,8 @@ export function EmailsPageClient() {
               currentPage={currentPage}
               emailsPerPage={emailsPerPage}
               onTotalEmailsChange={setTotalEmails}
-              emails={[]}
+              onEmailsLoaded={handleEmailsLoaded}
+              emails={allEmails}
             />
           </div>
 

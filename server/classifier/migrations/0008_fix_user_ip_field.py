@@ -6,7 +6,8 @@ def populate_user_ip(apps, schema_editor):
     # Para emails existentes sem user_ip, definir um IP padrão
     # Isso permite que sejam visualizados até que novos emails sejam criados
     updated_count = Email.objects.filter(user_ip__isnull=True).update(user_ip='127.0.0.1')
-    print(f"Atualizados {updated_count} emails com IP padrão")
+    if updated_count > 0:
+        print(f"Atualizados {updated_count} emails com IP padrão")
 
 def reverse_populate_user_ip(apps, schema_editor):
     """Reverter a população do user_ip"""

@@ -164,3 +164,89 @@ export async function fetchWithTimeout(url: string, options: RequestInit = {}, t
     throw error;
   }
 }
+
+// Tipos para a resposta da API de emails
+export interface EmailListResponse {
+  emails: Email[];
+  count: number;
+  user_ip: string;
+  success: boolean;
+  debug_info?: {
+    total_found: number;
+    user_ip_used: string;
+    headers_checked: {
+      x_forwarded_for: string;
+      x_real_ip: string;
+      remote_addr: string;
+    };
+  };
+  error?: string;
+}
+
+export interface Email {
+  id: number;
+  subject: string;
+  sender: string;
+  category: string;
+  created_at: string;
+  confidence_score: number;
+  content?: string;
+  suggested_response?: string;
+}
+
+// Função para buscar emails com tratamento robusto
+export async function fetchEmails(): Promise<EmailListResponse> {
+  try {
+    const response = await fetchWithTimeout(API_URLS.EMAILS_LIST, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    }, 15000); // 15 segundos de timeout
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Erro na API: ${response.status} - ${errorText}`);
+      throw new Error(`Erro HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    // Validar estrutura da resposta
+    if (typeof data !== 'object' || data === null) {
+      throw new Error('Resposta inválida da API: não é um objeto');
+    }
+
+    // Se não tem a propriedade success, assumir que é o formato antigo
+    if (!('success' in data)) {
+      // Tentar identificar se é um array de emails diretamente
+      if (Array.isArray(data)) {
+        return {
+          emails: data,
+          count: data.length,
+          user_ip: 'unknown',
+          success: true
+        };
+      }
+      throw new Error('Formato de resposta não reconhecido');
+    }
+
+    // Garantir que emails seja sempre um array
+    if (!Array.isArray(data.emails)) {
+      console.warn('Campo emails não é um array, usando array vazio');
+      data.emails = [];
+    }
+
+    return data as EmailListResponse;
+
+  } catch (error) {
+    console.error('Erro ao buscar emails:', error);
+
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('Erro de conectividade: não foi possível conectar ao servidor');
+    }
+
+    throw error;
+  }
+}
