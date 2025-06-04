@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { API_URLS } from "@/lib/api-helpers";
 import { Server, Database, CheckCircle, XCircle } from "lucide-react";
+import { useSystemStatus } from "@/components/system-notice-tooltip";
 
 interface BackendStatus {
   status: string;
@@ -19,6 +20,7 @@ interface BackendStatus {
 }
 
 export function BackendInfo() {
+  const { isSystemDisabled } = useSystemStatus();
   const [status, setStatus] = useState<BackendStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,11 +39,18 @@ export function BackendInfo() {
       }
     };
 
+    if (isSystemDisabled) {
+      setStatus(null);
+      setError("Sistema temporariamente desabilitado");
+      setLoading(false);
+      return;
+    }
+
     fetchStatus();
     const interval = setInterval(fetchStatus, 30000); // Atualizar a cada 30 segundos
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isSystemDisabled]);
 
   if (loading) {
     return (
@@ -61,7 +70,7 @@ export function BackendInfo() {
     );
   }
 
-  if (error) {
+  if (error || isSystemDisabled) {
     return (
       <Card>
         <CardHeader>
@@ -71,9 +80,16 @@ export function BackendInfo() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-2 text-red-600">
-            <XCircle className="h-4 w-4" />
-            <span>Erro: {error}</span>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+              <XCircle className="h-4 w-4" />
+              <span>{isSystemDisabled ? "Sistema Desabilitado" : `Erro: ${error}`}</span>
+            </div>
+            {isSystemDisabled && (
+              <div className="text-xs text-muted-foreground">
+                O backend foi desligado temporariamente devido aos custos operacionais.
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

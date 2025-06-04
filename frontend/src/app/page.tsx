@@ -26,6 +26,14 @@ export default function HomePage() {
                 Insira o conteúdo do email ou faça upload de um arquivo para classificação
                 automática entre produtivo e improdutivo.
               </p>
+              <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-md p-3 mb-3">
+                <h3 className="text-sm font-medium text-red-900 dark:text-red-100 mb-1">
+                  ⚠️ Sistema Temporariamente Indisponível
+                </h3>
+                <p className="text-xs text-red-700 dark:text-red-300">
+                  O backend foi desabilitado devido aos custos. Funcionalidades de classificação estão temporariamente indisponíveis.
+                </p>
+              </div>
               <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-md p-3">
                 <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
                   Limites de Upload:

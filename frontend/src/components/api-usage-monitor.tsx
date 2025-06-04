@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { API_URLS } from "@/lib/api-helpers";
-import { Activity, Clock, Calendar } from "lucide-react";
+import { Activity, Clock, Calendar, XCircle } from "lucide-react";
+import { useSystemStatus } from "@/components/system-notice-tooltip";
 
 interface UsageStats {
   gemini_api: {
@@ -23,11 +24,19 @@ interface UsageStats {
 }
 
 export function ApiUsageMonitor() {
+  const { isSystemDisabled } = useSystemStatus();
   const [stats, setStats] = useState<UsageStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isSystemDisabled) {
+      setStats(null);
+      setError("Sistema desabilitado");
+      setLoading(false);
+      return;
+    }
+
     const fetchStats = async () => {
       try {
         const response = await fetch(API_URLS.USAGE);
@@ -45,7 +54,7 @@ export function ApiUsageMonitor() {
     const interval = setInterval(fetchStats, 5000); // Atualizar a cada 5 segundos
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isSystemDisabled]);
 
   if (loading) {
     return (
@@ -65,7 +74,7 @@ export function ApiUsageMonitor() {
     );
   }
 
-  if (error) {
+  if (error || isSystemDisabled) {
     return (
       <Card>
         <CardHeader>
@@ -75,7 +84,15 @@ export function ApiUsageMonitor() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <span className="text-red-600 text-sm">Erro: {error}</span>
+          <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+            <XCircle className="h-4 w-4" />
+            <span>{isSystemDisabled ? "Monitoramento Indisponível" : `Erro: ${error}`}</span>
+          </div>
+          {isSystemDisabled && (
+            <div className="text-xs text-muted-foreground mt-2">
+              As métricas de API não estão disponíveis com o backend desabilitado.
+            </div>
+          )}
         </CardContent>
       </Card>
     );

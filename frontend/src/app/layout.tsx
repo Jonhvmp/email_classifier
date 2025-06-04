@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { Toaster } from "sonner";
+import { SystemNoticeTooltip } from "@/components/system-notice-tooltip";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -34,10 +35,12 @@ export default function RootLayout({
         className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased min-h-screen flex flex-col`}
       >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <Header />
-          <main className="flex-1 py-6">{children}</main>
-          <Footer />
-          <Toaster richColors closeButton position="top-right" />
+          <SystemNoticeTooltip>
+            <Header />
+            <main className="flex-1 py-6">{children}</main>
+            <Footer />
+            <Toaster richColors closeButton position="top-right" />
+          </SystemNoticeTooltip>
         </ThemeProvider>
       </body>
     </html>

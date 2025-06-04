@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { UploadCloud, Loader2, File, X, Clock, AlertTriangle } from "lucide-react";
 import { submitEmailAndWait, JobStatus } from "@/lib/api-helpers";
 import { QueueStatusDialog } from "./queue-status-dialog";
+import { useSystemStatus } from "@/components/system-notice-tooltip";
 
 const CHAR_LIMITS = {
   sender: 35,
@@ -32,6 +33,7 @@ const FILE_LIMITS = {
 
 export default function EmailSubmissionForm() {
   const router = useRouter();
+  const { isSystemDisabled } = useSystemStatus();
   const [loading, setLoading] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<{
     status?: string;
@@ -156,6 +158,13 @@ export default function EmailSubmissionForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isSystemDisabled) {
+      toast.error("Sistema temporariamente indisponível", {
+        description: "O backend foi desabilitado devido aos custos operacionais."
+      });
+      return;
+    }
 
     try {
       // Validações básicas
@@ -363,203 +372,215 @@ export default function EmailSubmissionForm() {
         <QueueStatusDialog />
       </div>
 
+      {isSystemDisabled && (
+        <div className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-md p-3 mb-4">
+          <p className="text-sm text-amber-800 dark:text-amber-200">
+            ⚠️ <strong>Sistema Indisponível:</strong> O formulário está desabilitado pois o backend foi temporariamente desligado.
+          </p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-4">
-          <div>
-            <Label>Método de entrada</Label>
-            <RadioGroup
-              value={inputMethod}
-              onValueChange={setInputMethod}
-              className="flex flex-col space-y-1 mt-2"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="text" id="text" />
-                <Label htmlFor="text" className="font-normal">Texto direto</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="file" id="file" />
-                <Label htmlFor="file" className="font-normal">Upload de arquivo</Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          <div>
-            <div className="flex justify-between items-center mb-1">
-              <Label htmlFor="sender">Remetente</Label>
-              <div className="flex items-center gap-1">
-                {isNearLimit('sender') && (
-                  <AlertTriangle className="h-3 w-3 text-amber-500" />
-                )}
-                <span className={`text-xs ${getCharCountColor('sender')}`}>
-                  {charCounts.sender}/{CHAR_LIMITS.sender}
-                </span>
-              </div>
+        <fieldset disabled={isSystemDisabled} className={isSystemDisabled ? "opacity-60" : ""}>
+          <div className="space-y-4">
+            <div>
+              <Label>Método de entrada</Label>
+              <RadioGroup
+                value={inputMethod}
+                onValueChange={setInputMethod}
+                className="flex flex-col space-y-1 mt-2"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="text" id="text" />
+                  <Label htmlFor="text" className="font-normal">Texto direto</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="file" id="file" />
+                  <Label htmlFor="file" className="font-normal">Upload de arquivo</Label>
+                </div>
+              </RadioGroup>
             </div>
-            <Input
-              id="sender"
-              name="sender"
-              type="email"
-              placeholder="email@exemplo.com"
-              value={formData.sender}
-              onChange={handleInputChange}
-              className="mt-1"
-            />
-          </div>
 
-          <div>
-            <div className="flex justify-between items-center mb-1">
-              <Label htmlFor="subject">Assunto</Label>
-              <div className="flex items-center gap-1">
-                {isNearLimit('subject') && (
-                  <AlertTriangle className="h-3 w-3 text-amber-500" />
-                )}
-                <span className={`text-xs ${getCharCountColor('subject')}`}>
-                  {charCounts.subject}/{CHAR_LIMITS.subject}
-                </span>
-              </div>
-            </div>
-            <Input
-              id="subject"
-              name="subject"
-              placeholder="Assunto do email"
-              value={formData.subject}
-              onChange={handleInputChange}
-              className="mt-1"
-            />
-          </div>
-
-          {inputMethod === "text" ? (
             <div>
               <div className="flex justify-between items-center mb-1">
-                <Label htmlFor="content">Conteúdo</Label>
+                <Label htmlFor="sender">Remetente</Label>
                 <div className="flex items-center gap-1">
-                  {isNearLimit('content') && (
+                  {isNearLimit('sender') && (
                     <AlertTriangle className="h-3 w-3 text-amber-500" />
                   )}
-                  <span className={`text-xs ${getCharCountColor('content')}`}>
-                    {charCounts.content}/{CHAR_LIMITS.content}
+                  <span className={`text-xs ${getCharCountColor('sender')}`}>
+                    {charCounts.sender}/{CHAR_LIMITS.sender}
                   </span>
                 </div>
               </div>
-              <Textarea
-                id="content"
-                name="content"
-                placeholder="Digite o conteúdo do email aqui..."
-                value={formData.content}
+              <Input
+                id="sender"
+                name="sender"
+                type="email"
+                placeholder="email@exemplo.com"
+                value={formData.sender}
                 onChange={handleInputChange}
                 className="mt-1"
-                rows={6}
               />
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="file-input">
-                  Arquivo (.txt, .pdf) - Máximo {(FILE_LIMITS.maxSize / 1024 / 1024).toFixed(1)}MB
-                </Label>
-                <div className="mt-1 border-2 border-dashed border-muted rounded-md p-4">
-                  <Input
-                    id="file-input"
-                    ref={fileInputRef}
-                    type="file"
-                    accept={FILE_LIMITS.allowedExtensions.join(',')}
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
 
-                  {formData.file ? (
-                    <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                      <div className="flex items-center space-x-2">
-                        <File className="h-5 w-5 text-blue-500" />
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">{formData.file.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {(formData.file.size / 1024).toFixed(2)} KB • {formData.file.type}
-                          </span>
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={removeFile}
-                        className="h-8 w-8 p-0"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={triggerFileInput}
-                      className="w-full cursor-pointer flex flex-col items-center justify-center space-y-2 p-4 hover:bg-muted/50 rounded-md transition-colors"
-                    >
-                      <UploadCloud className="h-10 w-10 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground font-medium">
-                        Clique para selecionar um arquivo
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        Apenas .txt e .pdf • Máximo {(FILE_LIMITS.maxSize / 1024 / 1024).toFixed(1)}MB
-                      </span>
-                    </button>
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <Label htmlFor="subject">Assunto</Label>
+                <div className="flex items-center gap-1">
+                  {isNearLimit('subject') && (
+                    <AlertTriangle className="h-3 w-3 text-amber-500" />
                   )}
+                  <span className={`text-xs ${getCharCountColor('subject')}`}>
+                    {charCounts.subject}/{CHAR_LIMITS.subject}
+                  </span>
                 </div>
               </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="use_file_subject"
-                  checked={formData.use_file_subject}
-                  onCheckedChange={(checked) => handleCheckboxChange("use_file_subject", !!checked)}
-                />
-                <Label htmlFor="use_file_subject" className="font-normal text-sm">
-                  Usar campo de assunto acima (ignorar assunto do arquivo)
-                </Label>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="use_file_sender"
-                  checked={formData.use_file_sender}
-                  onCheckedChange={(checked) => handleCheckboxChange("use_file_sender", !!checked)}
-                />
-                <Label htmlFor="use_file_sender" className="font-normal text-sm">
-                  Usar campo de remetente acima (ignorar remetente do arquivo)
-                </Label>
-              </div>
+              <Input
+                id="subject"
+                name="subject"
+                placeholder="Assunto do email"
+                value={formData.subject}
+                onChange={handleInputChange}
+                className="mt-1"
+              />
             </div>
-          )}
-        </div>
 
-        {processingStatus && (
-          <div className="space-y-2 bg-muted/30 p-3 rounded-md">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">{processingStatus.message}</span>
-              <span className="text-xs text-muted-foreground">
-                {processingStatus.status === "enfileirado" && processingStatus.waitTime &&
-                  `Espera estimada: ~${processingStatus.waitTime}s`}
-              </span>
-            </div>
-            <Progress value={processingStatus.progress} className="h-2" />
+            {inputMethod === "text" ? (
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <Label htmlFor="content">Conteúdo</Label>
+                  <div className="flex items-center gap-1">
+                    {isNearLimit('content') && (
+                      <AlertTriangle className="h-3 w-3 text-amber-500" />
+                    )}
+                    <span className={`text-xs ${getCharCountColor('content')}`}>
+                      {charCounts.content}/{CHAR_LIMITS.content}
+                    </span>
+                  </div>
+                </div>
+                <Textarea
+                  id="content"
+                  name="content"
+                  placeholder="Digite o conteúdo do email aqui..."
+                  value={formData.content}
+                  onChange={handleInputChange}
+                  className="mt-1"
+                  rows={6}
+                />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="file-input">
+                    Arquivo (.txt, .pdf) - Máximo {(FILE_LIMITS.maxSize / 1024 / 1024).toFixed(1)}MB
+                  </Label>
+                  <div className="mt-1 border-2 border-dashed border-muted rounded-md p-4">
+                    <Input
+                      id="file-input"
+                      ref={fileInputRef}
+                      type="file"
+                      accept={FILE_LIMITS.allowedExtensions.join(',')}
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
 
-            {processingStatus.status === "enfileirado" && (
-              <div className="flex items-center text-xs text-muted-foreground mt-1">
-                <Clock className="h-3 w-3 mr-1" />
-                <span>Posição na fila: {processingStatus.position || "..."}</span>
+                    {formData.file ? (
+                      <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                        <div className="flex items-center space-x-2">
+                          <File className="h-5 w-5 text-blue-500" />
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">{formData.file.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {(formData.file.size / 1024).toFixed(2)} KB • {formData.file.type}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={removeFile}
+                          className="h-8 w-8 p-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={triggerFileInput}
+                        className="w-full cursor-pointer flex flex-col items-center justify-center space-y-2 p-4 hover:bg-muted/50 rounded-md transition-colors"
+                      >
+                        <UploadCloud className="h-10 w-10 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground font-medium">
+                          Clique para selecionar um arquivo
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          Apenas .txt e .pdf • Máximo {(FILE_LIMITS.maxSize / 1024 / 1024).toFixed(1)}MB
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="use_file_subject"
+                    checked={formData.use_file_subject}
+                    onCheckedChange={(checked) => handleCheckboxChange("use_file_subject", !!checked)}
+                  />
+                  <Label htmlFor="use_file_subject" className="font-normal text-sm">
+                    Usar campo de assunto acima (ignorar assunto do arquivo)
+                  </Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="use_file_sender"
+                    checked={formData.use_file_sender}
+                    onCheckedChange={(checked) => handleCheckboxChange("use_file_sender", !!checked)}
+                  />
+                  <Label htmlFor="use_file_sender" className="font-normal text-sm">
+                    Usar campo de remetente acima (ignorar remetente do arquivo)
+                  </Label>
+                </div>
               </div>
             )}
           </div>
-        )}
+
+          {processingStatus && (
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">{processingStatus.message}</span>
+                <span className="text-xs text-muted-foreground">
+                  {processingStatus.status === "enfileirado" && processingStatus.waitTime &&
+                    `Espera estimada: ~${processingStatus.waitTime}s`}
+                </span>
+              </div>
+              <Progress value={processingStatus.progress} className="h-2" />
+
+              {processingStatus.status === "enfileirado" && (
+                <div className="flex items-center text-xs text-muted-foreground mt-1">
+                  <Clock className="h-3 w-3 mr-1" />
+                  <span>Posição na fila: {processingStatus.position || "..."}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </fieldset>
 
         <Button
           type="submit"
           className="w-full"
-          disabled={loading}>
+          disabled={loading || isSystemDisabled}>
           {loading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               {processingStatus?.status || "Processando..."}
             </>
+          ) : isSystemDisabled ? (
+            "Sistema Indisponível"
           ) : (
             "Classificar Email"
           )}

@@ -23,6 +23,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { useSystemStatus } from "@/components/system-notice-tooltip";
 
 interface Email {
   id: number;
@@ -35,6 +36,7 @@ interface Email {
 }
 
 export function EmailsPageClient() {
+  const { isSystemDisabled } = useSystemStatus();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -167,6 +169,15 @@ export function EmailsPageClient() {
   return (
     <div className="min-h-screen bg-gradient-to-br bg-[#FFFFFF] dark:bg-[#0A0A0A]">
       <div className="container mx-auto px-4 pt-8 pb-8">
+        {isSystemDisabled && (
+          <div className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-md p-3 mb-6">
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              ⚠️ <strong>Funcionalidade Limitada:</strong> O sistema está temporariamente desabilitado.
+              A lista pode estar desatualizada e algumas funcionalidades estão indisponíveis.
+            </p>
+          </div>
+        )}
+
         <div className="mb-8" data-emails-container>
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-primary/10 rounded-lg">
@@ -190,11 +201,16 @@ export function EmailsPageClient() {
                 className="pl-10 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
                 value={searchTerm}
                 onChange={(e) => handleSearchChange(e.target.value)}
+                disabled={isSystemDisabled}
               />
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  disabled={isSystemDisabled}
+                >
                   <Filter className="h-4 w-4" />
                   Filtros
                   {selectedCategories.length > 0 && (
@@ -219,7 +235,13 @@ export function EmailsPageClient() {
               </DropdownMenuContent>
             </DropdownMenu>
             {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="gap-2"
+                disabled={isSystemDisabled}
+              >
                 <X className="h-4 w-4" />
                 Limpar
               </Button>

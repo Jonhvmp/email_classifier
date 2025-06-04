@@ -13,6 +13,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { API_URLS } from "@/lib/api-helpers";
 import { Clock, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { useSystemStatus } from "@/components/system-notice-tooltip";
 
 interface QueueJob {
   id: string;
@@ -32,12 +33,19 @@ interface QueueStats {
 }
 
 export function QueueStatusDialog() {
+  const { isSystemDisabled } = useSystemStatus();
   const [queueStats, setQueueStats] = useState<QueueStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
 
   const fetchQueueStats = async () => {
+    if (isSystemDisabled) {
+      setError("Sistema desabilitado");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await fetch(API_URLS.USAGE);
@@ -101,7 +109,12 @@ export function QueueStatusDialog() {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="flex gap-2 items-center">
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex gap-2 items-center"
+          disabled={isSystemDisabled}
+        >
           <Clock className="h-4 w-4" />
           Status da Fila
         </Button>
@@ -110,11 +123,20 @@ export function QueueStatusDialog() {
         <DialogHeader>
           <DialogTitle>Status da Fila de Processamento</DialogTitle>
           <DialogDescription>
-            Informações em tempo real sobre jobs em fila e processamento
+            {isSystemDisabled
+              ? "Fila indisponível - sistema temporariamente desabilitado"
+              : "Informações em tempo real sobre jobs em fila e processamento"
+            }
           </DialogDescription>
         </DialogHeader>
 
-        {loading && !queueStats ? (
+        {isSystemDisabled ? (
+          <div className="bg-amber-50 dark:bg-amber-950/50 p-4 rounded-md border border-amber-200 dark:border-amber-800">
+            <div className="text-amber-800 dark:text-amber-200 text-sm">
+              A fila de processamento não está disponível pois o backend foi temporariamente desabilitado devido aos custos operacionais.
+            </div>
+          </div>
+        ) : loading && !queueStats ? (
           <div className="flex justify-center items-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
@@ -196,7 +218,12 @@ export function QueueStatusDialog() {
         ) : null}
 
         <div className="flex justify-between mt-4">
-          <Button variant="outline" size="sm" onClick={() => fetchQueueStats()}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchQueueStats()}
+            disabled={isSystemDisabled}
+          >
             Atualizar Dados
           </Button>
           <Button variant="default" size="sm" onClick={() => setIsOpen(false)}>

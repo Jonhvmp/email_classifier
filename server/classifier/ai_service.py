@@ -190,7 +190,7 @@ def _contains_feedback(subject, content):
 
 def suggest_response(subject, content, category):
     """
-    Generates a suggested response to an email using Gemini.
+    Gera uma resposta sugerida para o email usando Gemini AI.
     """
     # Detectar o contexto do email
     is_meeting_context = _is_meeting_related(subject, content)

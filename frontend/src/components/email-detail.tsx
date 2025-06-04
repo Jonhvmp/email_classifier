@@ -29,6 +29,7 @@ import {
   Shield,
   Clock
 } from "lucide-react";
+import { useSystemStatus } from "@/components/system-notice-tooltip";
 
 interface Email {
   id: number;
@@ -47,6 +48,7 @@ interface EmailDetailProps {
 
 export function EmailDetail({ id }: EmailDetailProps) {
   const router = useRouter();
+  const { isSystemDisabled } = useSystemStatus();
   const [email, setEmail] = useState<Email | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +57,12 @@ export function EmailDetail({ id }: EmailDetailProps) {
   // const [activeTab, setActiveTab] = useState("content");
 
   const fetchEmailDetails = useCallback(async () => {
+    if (isSystemDisabled) {
+      setError("Sistema temporariamente desabilitado - dados podem estar desatualizados");
+      setLoading(false);
+      return;
+    }
+
     try {
       const emailId = id.toString();
       const apiUrl = API_URLS.EMAIL_DETAIL(emailId);
@@ -119,7 +127,7 @@ export function EmailDetail({ id }: EmailDetailProps) {
     } finally {
       setLoading(false);
     }
-  }, [id, retryCount]);
+  }, [id, retryCount, isSystemDisabled]);
 
   useEffect(() => {
     fetchEmailDetails();
@@ -141,6 +149,13 @@ export function EmailDetail({ id }: EmailDetailProps) {
   };
 
   const handleRefresh = () => {
+    if (isSystemDisabled) {
+      toast.error("Sistema indisponível", {
+        description: "Não é possível atualizar dados com o backend desabilitado."
+      });
+      return;
+    }
+
     setLoading(true);
     setRetryCount(0);
     fetchEmailDetails();
@@ -254,6 +269,15 @@ export function EmailDetail({ id }: EmailDetailProps) {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         <div className="max-w-5xl mx-auto space-y-6">
+          {isSystemDisabled && (
+            <div className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-md p-3">
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                ⚠️ <strong>Visualização Limitada:</strong> O sistema está temporariamente desabilitado.
+                Algumas funcionalidades podem não estar disponíveis.
+              </p>
+            </div>
+          )}
+
           {/* Header */}
           <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
@@ -286,11 +310,13 @@ export function EmailDetail({ id }: EmailDetailProps) {
                 variant="outline"
                 size="sm"
                 onClick={handleRefresh}
-                disabled={loading}
+                disabled={loading || isSystemDisabled}
                 className="gap-2"
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Atualizar</span>
+                <span className="hidden sm:inline">
+                  {isSystemDisabled ? "Indisponível" : "Atualizar"}
+                </span>
               </Button>
             </div>
           </header>
@@ -419,9 +445,10 @@ export function EmailDetail({ id }: EmailDetailProps) {
                               size="sm"
                               onClick={handleCopyResponse}
                               className="gap-2"
+                              disabled={isSystemDisabled}
                             >
                               <Copy className="h-4 w-4" />
-                              Copiar
+                              {isSystemDisabled ? "Indisponível" : "Copiar"}
                             </Button>
                           </div>
 
